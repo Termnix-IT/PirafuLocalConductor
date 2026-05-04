@@ -6,3 +6,4 @@ coverage/
 !.env.example
 npm-debug.log*
 .pirafu/
+使い方メモ.md
