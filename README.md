@@ -56,3 +56,7 @@ Inside chat mode, plain text is treated as a coding task. Slash commands are han
 - `/dry-run on`
 - `/dry-run off`
 - `/exit`
+
+## License
+
+MIT
