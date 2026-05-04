@@ -34,13 +34,11 @@ export function validatePlannerOutput(value: unknown): PlannerOutput {
 
 export function validateWorkerOutput(value: unknown): WorkerOutput {
   const record = asRecord(value, "worker output");
-  if (!Array.isArray(record.edits)) {
-    throw new Error("edits must be an array.");
-  }
+  const editsValue = normalizeEdits(record);
 
   return {
     summary: assertString(record.summary, "summary"),
-    edits: record.edits.map((edit, index) => {
+    edits: editsValue.map((edit, index) => {
       const item = asRecord(edit, `edits[${index}]`);
       const action = assertString(item.action, `edits[${index}].action`);
       if (action !== "create" && action !== "update" && action !== "delete") {
@@ -65,6 +63,22 @@ export function validateWorkerOutput(value: unknown): WorkerOutput {
       };
     })
   };
+}
+
+function normalizeEdits(record: Record<string, unknown>): unknown[] {
+  if (Array.isArray(record.edits)) {
+    return record.edits;
+  }
+  if (record.edits !== undefined && typeof record.edits === "object" && record.edits !== null && !Array.isArray(record.edits)) {
+    return [record.edits];
+  }
+  if (record.edit !== undefined && typeof record.edit === "object" && record.edit !== null && !Array.isArray(record.edit)) {
+    return [record.edit];
+  }
+  if (record.path !== undefined && record.action !== undefined && record.reason !== undefined) {
+    return [record];
+  }
+  throw new Error("edits must be an array.");
 }
 
 export function validateReviewerOutput(value: unknown): ReviewerOutput {

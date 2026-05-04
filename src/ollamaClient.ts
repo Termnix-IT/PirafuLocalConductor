@@ -14,14 +14,14 @@ export class OllamaClient {
     this.model = options.model;
   }
 
-  async chatJson(messages: ChatMessage[]): Promise<string> {
+  async chatJson(messages: ChatMessage[], schema?: object): Promise<string> {
     const response = await fetch(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         model: this.model,
         messages,
-        format: "json",
+        format: schema ?? "json",
         stream: false
       })
     });

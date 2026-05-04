@@ -31,7 +31,9 @@ import {
   testIntakeValidationAcceptsSingleStringLists,
   testParseJsonObjectAcceptsFencedJson,
   testPlannerValidationAcceptsSingleVerificationString,
-  testWorkerValidationRequiresContentOrPatchForUpdate
+  testWorkerValidationRecoversRootEditShape,
+  testWorkerValidationRequiresContentOrPatchForUpdate,
+  testWorkerValidationWrapsSingleEditObject
 } from "./validation.test.js";
 import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths, testWorkspaceSearchTextFindsMatches } from "./workspace.test.js";
 
@@ -47,6 +49,8 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["create running status includes task", testCreateRunningStatusIncludesTask],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
   ["worker validation requires content or patch for update", testWorkerValidationRequiresContentOrPatchForUpdate],
+  ["worker validation wraps single edit object", testWorkerValidationWrapsSingleEditObject],
+  ["worker validation recovers root edit shape", testWorkerValidationRecoversRootEditShape],
   ["intake validation requires known risk level", testIntakeValidationRequiresKnownRiskLevel],
   ["intake validation accepts single string lists", testIntakeValidationAcceptsSingleStringLists],
   ["planner validation accepts single verification string", testPlannerValidationAcceptsSingleVerificationString],

@@ -4,6 +4,7 @@ import { applyUnifiedPatch } from "./patch.js";
 import { parseJsonObject } from "./json.js";
 import type { ApprovalProvider } from "./approval.js";
 import { intakeMessages, plannerMessages, reviewerMessages, workerMessages } from "./prompts.js";
+import { intakeSchema, plannerSchema, reviewerSchema, workerSchema } from "./schemas.js";
 import type { OllamaClient } from "./ollamaClient.js";
 import { runTestCommand, type TestCommandRunner } from "./testCommand.js";
 import type {
@@ -60,7 +61,13 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   const searchResults = await workspace.searchText(searchQueries);
   logger.log(`Search: ${searchResults.length} match(es) for ${searchQueries.length} query term(s).`);
   logger.log("Intake: evaluating request clarity and routing...");
-  const intake = await requestValidatedJson(options.client, intakeMessages(options.task, files, searchResults, language), validateIntakeOutput, "intake output");
+  const intake = await requestValidatedJson(
+    options.client,
+    intakeMessages(options.task, files, searchResults, language),
+    intakeSchema,
+    validateIntakeOutput,
+    "intake output"
+  );
   logger.log(`Intake summary: ${intake.summary}`);
   logger.log(`Intake risk: ${intake.riskLevel}`);
   for (const criterion of intake.acceptanceCriteria) {
@@ -86,7 +93,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   }
 
   const task = intake.normalizedTask || options.task;
-  const planner = await requestValidatedJson(options.client, plannerMessages(task, files, searchResults, language), validatePlannerOutput, "planner output");
+  const planner = await requestValidatedJson(options.client, plannerMessages(task, files, searchResults, language), plannerSchema, validatePlannerOutput, "planner output");
 
   logger.log(`Planner summary: ${planner.summary}`);
   const snapshots = await workspace.readSnapshots(planner.targetFiles);
@@ -105,7 +112,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
     const instruction = reviewFeedback
       ? `${planner.workerInstruction}\n\nReviewer rejected the previous diff. Address this feedback and return a revised complete edit set:\n${reviewFeedback}`
       : planner.workerInstruction;
-    worker = await requestValidatedJson(options.client, workerMessages(task, instruction, snapshots, language), validateWorkerOutput, "worker output");
+    worker = await requestValidatedJson(options.client, workerMessages(task, instruction, snapshots, language), workerSchema, validateWorkerOutput, "worker output");
     workerAttempts.push(worker);
 
     prepared = await prepareEdits(workspace, worker.edits);
@@ -115,7 +122,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
 
     logger.log(`Reviewer: reviewing proposed diff (${attemptLabel})...`);
     const combinedDiff = prepared.map((edit) => edit.diff).join("\n");
-    reviewer = await requestValidatedJson(options.client, reviewerMessages(task, combinedDiff, language), validateReviewerOutput, "reviewer output");
+    reviewer = await requestValidatedJson(options.client, reviewerMessages(task, combinedDiff, language), reviewerSchema, validateReviewerOutput, "reviewer output");
     reviewerAttempts.push(reviewer);
 
     logger.log(`Reviewer approved: ${reviewer.approved}`);
@@ -156,8 +163,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   }
 
   const combinedDiff = prepared.map((edit) => edit.diff).join("\n");
-  logger.log("Approved diff:");
-  logger.log(combinedDiff || "(no diff)");
+  logger.log(`Approved diff prepared (${prepared.length} edit(s)).`);
 
   if (options.dryRun) {
     logger.log("Dry run enabled. No edits will be applied.");
@@ -265,22 +271,26 @@ async function maybeRunTestCommand(
 async function requestValidatedJson<T>(
   client: OllamaClient,
   messages: ChatMessage[],
+  schema: object,
   validate: (value: unknown) => T,
   label: string
 ): Promise<T> {
-  const raw = await client.chatJson(messages);
+  const raw = await client.chatJson(messages, schema);
   try {
     return validate(parseJsonObject(raw));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const repaired = await client.chatJson([
-      ...messages,
-      { role: "assistant", content: raw },
-      {
-        role: "user",
-        content: `Your previous ${label} was invalid: ${message}. Return only one valid JSON object matching the requested schema. Do not include markdown or explanation.`
-      }
-    ]);
+    const repaired = await client.chatJson(
+      [
+        ...messages,
+        { role: "assistant", content: raw },
+        {
+          role: "user",
+          content: `Your previous ${label} was invalid: ${message}. Return only one valid JSON object matching the requested schema. Do not include markdown or explanation.`
+        }
+      ],
+      schema
+    );
     return validate(parseJsonObject(repaired));
   }
 }

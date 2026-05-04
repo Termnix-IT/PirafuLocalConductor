@@ -18,6 +18,32 @@ export function testWorkerValidationRequiresContentOrPatchForUpdate(): void {
   );
 }
 
+export function testWorkerValidationWrapsSingleEditObject(): void {
+  const result = validateWorkerOutput({
+    summary: "create subtraction script",
+    edits: {
+      path: "hikizan.py",
+      action: "create",
+      reason: "requested",
+      content: "print(5 - 2)\n"
+    }
+  });
+  assert.equal(result.edits.length, 1);
+  assert.equal(result.edits[0]?.path, "hikizan.py");
+}
+
+export function testWorkerValidationRecoversRootEditShape(): void {
+  const result = validateWorkerOutput({
+    summary: "create subtraction script",
+    path: "hikizan.py",
+    action: "create",
+    reason: "requested",
+    content: "print(5 - 2)\n"
+  });
+  assert.equal(result.edits.length, 1);
+  assert.equal(result.edits[0]?.path, "hikizan.py");
+}
+
 export function testIntakeValidationRequiresKnownRiskLevel(): void {
   assert.throws(
     () =>
