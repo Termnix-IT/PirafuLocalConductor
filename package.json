@@ -1,0 +1,22 @@
+{
+  "name": "pirafu-local-conductor",
+  "version": "0.1.0",
+  "description": "Local Gemma4 coding agent orchestrator for Ollama.",
+  "type": "module",
+  "bin": {
+    "pirafu": "./dist/src/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node dist/test/run-tests.js",
+    "doctor": "node dist/src/cli.js doctor",
+    "start": "node dist/src/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}
