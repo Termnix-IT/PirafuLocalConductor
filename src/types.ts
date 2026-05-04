@@ -19,6 +19,7 @@ export interface ProposedEdit {
   action: EditAction;
   reason: string;
   content?: string;
+  patch?: string;
 }
 
 export interface WorkerOutput {

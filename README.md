@@ -15,6 +15,8 @@ The CLI uses a safe `Planner -> Worker -> Reviewer` flow. The Worker proposes fu
 
 Before planning, Pirafu scans workspace text for task keywords and quoted strings. Those search hits are passed to Planner so it can choose target files from both file names and actual content matches.
 
+For updates, Worker can return either complete replacement content or a unified diff `patch`. Patches are validated against the current file content before Pirafu prepares the final reviewed diff.
+
 ## Useful run options
 
 ```powershell

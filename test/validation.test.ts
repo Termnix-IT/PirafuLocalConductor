@@ -7,13 +7,13 @@ export function testParseJsonObjectAcceptsFencedJson(): void {
   assert.equal(value.ok, true);
 }
 
-export function testWorkerValidationRequiresContentForUpdate(): void {
+export function testWorkerValidationRequiresContentOrPatchForUpdate(): void {
   assert.throws(
     () =>
       validateWorkerOutput({
         summary: "bad",
         edits: [{ path: "a.ts", action: "update", reason: "missing content" }]
     }),
-    /content is required/
+    /requires content or patch/
   );
 }

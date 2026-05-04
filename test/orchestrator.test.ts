@@ -67,6 +67,36 @@ class RetryClient {
   }
 }
 
+class PatchClient {
+  private calls = 0;
+
+  async chatJson(_messages: ChatMessage[]): Promise<string> {
+    this.calls += 1;
+    if (this.calls === 1) {
+      return JSON.stringify({
+        summary: "Update file",
+        targetFiles: ["index.ts"],
+        workerInstruction: "Change value to 2.",
+        verification: ["Read file"]
+      });
+    }
+    if (this.calls === 2) {
+      return JSON.stringify({
+        summary: "Changed file with patch",
+        edits: [
+          {
+            path: "index.ts",
+            action: "update",
+            reason: "requested",
+            patch: ["@@ -1 +1 @@", "-export const value = 1;", "+export const value = 2;"].join("\n")
+          }
+        ]
+      });
+    }
+    return JSON.stringify({ approved: true, findings: [], requiredChanges: [] });
+  }
+}
+
 export async function testOrchestratorAppliesOnlyApprovedEdits(): Promise<void> {
   const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
   try {
@@ -227,6 +257,28 @@ export async function testOrchestratorSkipsTestCommandWhenRejected(): Promise<vo
 
     assert.deepEqual(result.applied, []);
     assert.equal(result.testResult, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+export async function testOrchestratorAppliesPatchEdits(): Promise<void> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
+  try {
+    await writeFile(path.join(root, "index.ts"), "export const value = 1;\n", "utf8");
+    const approval: ApprovalProvider = async () => "approve";
+
+    const result = await runOrchestrator({
+      workspacePath: root,
+      task: "change value",
+      model: "fake",
+      client: new PatchClient() as never,
+      approval,
+      logger: { log: () => undefined, error: () => undefined }
+    });
+
+    assert.deepEqual(result.applied, ["index.ts"]);
+    assert.equal(await readFile(path.join(root, "index.ts"), "utf8"), "export const value = 2;\n");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

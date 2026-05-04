@@ -27,15 +27,20 @@ export function validateWorkerOutput(value: unknown): WorkerOutput {
       }
 
       const content = item.content === undefined ? undefined : assertString(item.content, `edits[${index}].content`);
-      if ((action === "create" || action === "update") && content === undefined) {
-        throw new Error(`edits[${index}].content is required for ${action}.`);
+      const patch = item.patch === undefined ? undefined : assertString(item.patch, `edits[${index}].patch`);
+      if (action === "create" && content === undefined) {
+        throw new Error(`edits[${index}].content is required for create.`);
+      }
+      if (action === "update" && content === undefined && patch === undefined) {
+        throw new Error(`edits[${index}] requires content or patch for update.`);
       }
 
       return {
         path: assertString(item.path, `edits[${index}].path`),
         action,
         reason: assertString(item.reason, `edits[${index}].reason`),
-        content
+        content,
+        patch
       };
     })
   };

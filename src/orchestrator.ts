@@ -1,5 +1,6 @@
 import path from "node:path";
 import { createUnifiedDiff } from "./diff.js";
+import { applyUnifiedPatch } from "./patch.js";
 import { parseJsonObject } from "./json.js";
 import type { ApprovalProvider } from "./approval.js";
 import { plannerMessages, reviewerMessages, workerMessages } from "./prompts.js";
@@ -159,12 +160,13 @@ export async function prepareEdits(workspace: Workspace, edits: WorkerOutput["ed
 
       const absolutePath = workspace.resolveInside(edit.path);
       const snapshot = await workspace.readSnapshot(edit.path);
-      const afterContent = edit.content ?? "";
+      const afterContent = edit.patch && edit.content === undefined ? applyUnifiedPatch(snapshot.content, edit.patch) : edit.content ?? "";
       const normalizedPath = edit.path.replaceAll("\\", "/");
 
       return {
         ...edit,
         path: normalizedPath,
+        content: afterContent,
         absolutePath,
         beforeContent: snapshot.content,
         afterContent,

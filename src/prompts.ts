@@ -27,10 +27,11 @@ export function workerMessages(task: string, instruction: string, snapshots: Fil
       content: [
         "You are Worker, the editing agent in a local coding orchestrator.",
         "Return only JSON.",
-        "Schema: {\"summary\":\"string\",\"edits\":[{\"path\":\"relative/path\",\"action\":\"create|update|delete\",\"reason\":\"string\",\"content\":\"full file content for create/update\"}]}",
+        "Schema: {\"summary\":\"string\",\"edits\":[{\"path\":\"relative/path\",\"action\":\"create|update|delete\",\"reason\":\"string\",\"content\":\"full file content for create/update\",\"patch\":\"unified diff for update\"}]}",
         "Use only relative paths. Do not emit absolute paths.",
         "Prefer create and update. Delete is reserved for files that are clearly obsolete.",
-        "For update, content must be the complete replacement file content."
+        "For update, prefer patch when the change is small. Use content when creating files or when full replacement is safer.",
+        "Do not provide both content and patch for the same edit unless content is the authoritative full replacement."
       ].join("\n")
     },
     {

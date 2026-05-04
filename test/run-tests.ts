@@ -2,14 +2,16 @@ import {
   testOrchestratorAppliesOnlyApprovedEdits,
   testOrchestratorBlocksUnapprovedReview,
   testDeriveSearchQueriesUsesQuotedStrings,
+  testOrchestratorAppliesPatchEdits,
   testOrchestratorDryRunSkipsApprovalAndApply,
   testOrchestratorRunsTestCommandAfterApply,
   testOrchestratorSkipsTestCommandWhenRejected,
   testOrchestratorRetriesAfterReviewRejection
 } from "./orchestrator.test.js";
+import { testApplyUnifiedPatchRejectsMismatchedContext, testApplyUnifiedPatchUpdatesMatchingHunk } from "./patch.test.js";
 import { testRunLogSavesJsonFile } from "./runLog.test.js";
 import { testParseCommandLineKeepsQuotedArgs, testParseCommandLineRejectsUnclosedQuote } from "./testCommand.test.js";
-import { testParseJsonObjectAcceptsFencedJson, testWorkerValidationRequiresContentForUpdate } from "./validation.test.js";
+import { testParseJsonObjectAcceptsFencedJson, testWorkerValidationRequiresContentOrPatchForUpdate } from "./validation.test.js";
 import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths, testWorkspaceSearchTextFindsMatches } from "./workspace.test.js";
 
 const tests: Array<[string, () => void | Promise<void>]> = [
@@ -17,11 +19,14 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["workspace applies approved create edits inside root", testWorkspaceAppliesCreateEdits],
   ["workspace search text finds matches", testWorkspaceSearchTextFindsMatches],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
-  ["worker validation requires content for update", testWorkerValidationRequiresContentForUpdate],
+  ["worker validation requires content or patch for update", testWorkerValidationRequiresContentOrPatchForUpdate],
+  ["apply unified patch updates matching hunk", testApplyUnifiedPatchUpdatesMatchingHunk],
+  ["apply unified patch rejects mismatched context", testApplyUnifiedPatchRejectsMismatchedContext],
   ["parse command line keeps quoted args", testParseCommandLineKeepsQuotedArgs],
   ["parse command line rejects unclosed quote", testParseCommandLineRejectsUnclosedQuote],
   ["derive search queries uses quoted strings", testDeriveSearchQueriesUsesQuotedStrings],
   ["orchestrator applies only approved edits", testOrchestratorAppliesOnlyApprovedEdits],
+  ["orchestrator applies patch edits", testOrchestratorAppliesPatchEdits],
   ["orchestrator blocks unapproved review", testOrchestratorBlocksUnapprovedReview],
   ["orchestrator dry run skips approval and apply", testOrchestratorDryRunSkipsApprovalAndApply],
   ["orchestrator retries after review rejection", testOrchestratorRetriesAfterReviewRejection],
