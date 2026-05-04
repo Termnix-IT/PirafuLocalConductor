@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { chatLogPathToId, formatLanguage, parseLanguage, splitInputLines } from "../src/chat.js";
+import {
+  chatLogPathToId,
+  createIdleStatus,
+  createRunningStatus,
+  formatLanguage,
+  formatTaskStatus,
+  parseLanguage,
+  splitInputLines
+} from "../src/chat.js";
 
 export function testChatLogPathToIdExtractsJsonFileName(): void {
   assert.equal(chatLogPathToId("C:\\tmp\\.pirafu\\logs\\pirafu-1.json"), "pirafu-1");
@@ -20,4 +28,17 @@ export function testParseLanguageAcceptsJapaneseAndEnglishAliases(): void {
 export function testFormatLanguageLabelsState(): void {
   assert.equal(formatLanguage("ja"), "ja (Japanese)");
   assert.equal(formatLanguage("en"), "en (English)");
+}
+
+export function testFormatTaskStatusShowsStateAndLog(): void {
+  assert.equal(formatTaskStatus(createIdleStatus()), "status=idle No task has run yet.");
+  assert.equal(formatTaskStatus({ state: "completed", task: "make file", logId: "pirafu-1", message: "Task completed." }), 'status=completed Task completed. task="make file" log=pirafu-1');
+}
+
+export function testCreateRunningStatusIncludesTask(): void {
+  assert.deepEqual(createRunningStatus("make file"), {
+    state: "running",
+    task: "make file",
+    message: "Task is running."
+  });
 }

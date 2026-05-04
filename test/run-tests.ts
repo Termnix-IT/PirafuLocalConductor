@@ -12,7 +12,9 @@ import {
 } from "./orchestrator.test.js";
 import {
   testChatLogPathToIdExtractsJsonFileName,
+  testCreateRunningStatusIncludesTask,
   testFormatLanguageLabelsState,
+  testFormatTaskStatusShowsStateAndLog,
   testParseLanguageAcceptsJapaneseAndEnglishAliases,
   testSplitInputLinesNormalizesWindowsNewlines
 } from "./chat.test.js";
@@ -41,6 +43,8 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["split input lines normalizes Windows newlines", testSplitInputLinesNormalizesWindowsNewlines],
   ["parse language accepts Japanese and English aliases", testParseLanguageAcceptsJapaneseAndEnglishAliases],
   ["format language labels state", testFormatLanguageLabelsState],
+  ["format task status shows state and log", testFormatTaskStatusShowsStateAndLog],
+  ["create running status includes task", testCreateRunningStatusIncludesTask],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
   ["worker validation requires content or patch for update", testWorkerValidationRequiresContentOrPatchForUpdate],
   ["intake validation requires known risk level", testIntakeValidationRequiresKnownRiskLevel],

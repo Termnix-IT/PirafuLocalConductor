@@ -22,6 +22,7 @@ export async function runChat(options: ChatOptions): Promise<void> {
   let dryRun = options.dryRun;
   let language: ResponseLanguage = "ja";
   let lastLogId: string | undefined;
+  let taskStatus: ChatTaskStatus = createIdleStatus();
 
   output.write(`Pirafu Local Conductor\nWorkspace: ${options.workspace}\nModel: ${options.model}\nLanguage: ${formatLanguage(language)}\nType /help for commands.\n\n`);
 
@@ -38,17 +39,23 @@ export async function runChat(options: ChatOptions): Promise<void> {
         break;
       }
       if (line.startsWith("/")) {
-        const result = await handleChatCommand(line, options, dryRun, language, lastLogId, prompt);
+        const result = await handleChatCommand(line, options, dryRun, language, lastLogId, taskStatus, prompt);
         dryRun = result.dryRun;
         language = result.language;
         lastLogId = result.lastLogId ?? lastLogId;
+        taskStatus = result.taskStatus ?? taskStatus;
         if (result.exit) {
           break;
         }
         continue;
       }
 
-      lastLogId = await executeChatTask(line, options, dryRun, language, prompt);
+      taskStatus = createRunningStatus(line);
+      printTaskStatus(taskStatus);
+      const result = await executeChatTask(line, options, dryRun, language, prompt);
+      taskStatus = result.status;
+      lastLogId = result.logId ?? lastLogId;
+      printTaskStatus(taskStatus);
     }
   } finally {
     prompt.close();
@@ -65,7 +72,17 @@ interface ChatCommandResult {
   dryRun: boolean;
   language: ResponseLanguage;
   lastLogId?: string;
+  taskStatus?: ChatTaskStatus;
   exit?: boolean;
+}
+
+export type ChatTaskState = "idle" | "running" | "completed" | "failed";
+
+export interface ChatTaskStatus {
+  state: ChatTaskState;
+  task?: string;
+  logId?: string;
+  message: string;
 }
 
 async function handleChatCommand(
@@ -74,6 +91,7 @@ async function handleChatCommand(
   dryRun: boolean,
   language: ResponseLanguage,
   lastLogId: string | undefined,
+  taskStatus: ChatTaskStatus,
   prompt: Prompt
 ): Promise<ChatCommandResult> {
   const [command, ...args] = line.split(/\s+/);
@@ -86,6 +104,7 @@ async function handleChatCommand(
         "  /logs",
         "  /show <id|last>",
         "  /retry <id|last>",
+        "  /status",
         "  /language ja|en",
         "  /dry-run on|off",
         "  /exit",
@@ -119,8 +138,15 @@ async function handleChatCommand(
   if (command === "/retry") {
     const id = resolveChatLogId(args[0], lastLogId);
     const retryOptions = extractRetryRunOptions(await readRunLog(options.logDir, id), options.model);
-    const nextLogId = await executeChatTask(retryOptions.task, { ...options, workspace: retryOptions.workspace, model: retryOptions.model }, dryRun, language, prompt);
-    return { dryRun, language, lastLogId: nextLogId };
+    const running = createRunningStatus(retryOptions.task);
+    printTaskStatus(running);
+    const result = await executeChatTask(retryOptions.task, { ...options, workspace: retryOptions.workspace, model: retryOptions.model }, dryRun, language, prompt);
+    printTaskStatus(result.status);
+    return { dryRun, language, lastLogId: result.logId, taskStatus: result.status };
+  }
+  if (command === "/status") {
+    printTaskStatus(taskStatus);
+    return { dryRun, language };
   }
   if (command === "/language") {
     const nextLanguage = parseLanguage(args[0]);
@@ -155,7 +181,7 @@ async function executeChatTask(
   dryRun: boolean,
   language: ResponseLanguage,
   prompt: Prompt
-): Promise<string> {
+): Promise<{ logId?: string; status: ChatTaskStatus }> {
   const client = new OllamaClient({ model: options.model });
   const logger = new SessionLogger();
   let result: unknown;
@@ -184,7 +210,15 @@ async function executeChatTask(
       error: message
     });
     output.write(`Run log saved: ${logPath}\n`);
-    throw error;
+    return {
+      logId: chatLogPathToId(logPath),
+      status: {
+        state: "failed",
+        task,
+        logId: chatLogPathToId(logPath),
+        message
+      }
+    };
   }
 
   const logPath = await saveRunLog({
@@ -197,7 +231,38 @@ async function executeChatTask(
     result
   });
   output.write(`Run log saved: ${logPath}\n`);
-  return chatLogPathToId(logPath);
+  return {
+    logId: chatLogPathToId(logPath),
+    status: {
+      state: "completed",
+      task,
+      logId: chatLogPathToId(logPath),
+      message: "Task completed."
+    }
+  };
+}
+
+export function createIdleStatus(): ChatTaskStatus {
+  return { state: "idle", message: "No task has run yet." };
+}
+
+export function createRunningStatus(task: string): ChatTaskStatus {
+  return { state: "running", task, message: "Task is running." };
+}
+
+export function formatTaskStatus(status: ChatTaskStatus): string {
+  const parts = [`status=${status.state}`, status.message];
+  if (status.task) {
+    parts.push(`task="${status.task}"`);
+  }
+  if (status.logId) {
+    parts.push(`log=${status.logId}`);
+  }
+  return parts.join(" ");
+}
+
+function printTaskStatus(status: ChatTaskStatus): void {
+  output.write(`${formatTaskStatus(status)}\n`);
 }
 
 function resolveChatLogId(value: string | undefined, lastLogId: string | undefined): string {
