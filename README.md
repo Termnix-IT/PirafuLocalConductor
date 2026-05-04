@@ -11,7 +11,7 @@ node dist/src/cli.js doctor
 node dist/src/cli.js run --workspace C:\path\to\project --task "Make the requested change"
 ```
 
-The CLI uses a safe `Planner -> Worker -> Reviewer` flow. The Worker proposes full-file edits, the Reviewer checks the combined diff, and files are written only after one batch approval.
+The CLI uses a safe `Intake -> Planner -> Worker -> Reviewer` flow. Intake acts as the front desk: it normalizes the request, records acceptance criteria and constraints, and stops before planning when the request is too ambiguous to edit safely. The Worker proposes edits, the Reviewer checks the combined diff, and files are written only after one batch approval.
 
 Before planning, Pirafu scans workspace text for task keywords and quoted strings. Those search hits are passed to Planner so it can choose target files from both file names and actual content matches.
 

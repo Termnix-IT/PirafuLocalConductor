@@ -1,5 +1,26 @@
 import type { FileSnapshot, SearchResult } from "./types.js";
 
+export function intakeMessages(task: string, files: string[], searchResults: SearchResult[]) {
+  return [
+    {
+      role: "system" as const,
+      content: [
+        "You are Intake, the front desk agent for a local coding orchestrator.",
+        "Return only JSON.",
+        "Schema: {\"ready\":boolean,\"summary\":\"string\",\"normalizedTask\":\"string\",\"acceptanceCriteria\":[\"string\"],\"constraints\":[\"string\"],\"questions\":[\"string\"],\"riskLevel\":\"low|medium|high\"}.",
+        "Decide whether the request is clear enough for a coding agent to edit files safely.",
+        "Set ready=false only when a reasonable implementation cannot be inferred safely.",
+        "When ready=true, rewrite normalizedTask as a concise actionable request for Planner.",
+        "Use relative paths only when mentioning files. Never invent absolute paths."
+      ].join("\n")
+    },
+    {
+      role: "user" as const,
+      content: JSON.stringify({ task, files, searchResults }, null, 2)
+    }
+  ];
+}
+
 export function plannerMessages(task: string, files: string[], searchResults: SearchResult[]) {
   return [
     {

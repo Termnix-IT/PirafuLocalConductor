@@ -1,5 +1,26 @@
 import { assertString, assertStringArray } from "./json.js";
-import type { PlannerOutput, ReviewerOutput, WorkerOutput } from "./types.js";
+import type { IntakeOutput, PlannerOutput, ReviewerOutput, WorkerOutput } from "./types.js";
+
+export function validateIntakeOutput(value: unknown): IntakeOutput {
+  const record = asRecord(value, "intake output");
+  if (typeof record.ready !== "boolean") {
+    throw new Error("ready must be a boolean.");
+  }
+  const riskLevel = assertString(record.riskLevel, "riskLevel");
+  if (riskLevel !== "low" && riskLevel !== "medium" && riskLevel !== "high") {
+    throw new Error("riskLevel must be low, medium, or high.");
+  }
+
+  return {
+    ready: record.ready,
+    summary: assertString(record.summary, "summary"),
+    normalizedTask: assertString(record.normalizedTask, "normalizedTask"),
+    acceptanceCriteria: assertStringArray(record.acceptanceCriteria, "acceptanceCriteria"),
+    constraints: assertStringArray(record.constraints, "constraints"),
+    questions: assertStringArray(record.questions, "questions"),
+    riskLevel
+  };
+}
 
 export function validatePlannerOutput(value: unknown): PlannerOutput {
   const record = asRecord(value, "planner output");

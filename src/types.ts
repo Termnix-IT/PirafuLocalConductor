@@ -5,6 +5,18 @@ export interface ChatMessage {
   content: string;
 }
 
+export type IntakeRiskLevel = "low" | "medium" | "high";
+
+export interface IntakeOutput {
+  ready: boolean;
+  summary: string;
+  normalizedTask: string;
+  acceptanceCriteria: string[];
+  constraints: string[];
+  questions: string[];
+  riskLevel: IntakeRiskLevel;
+}
+
 export interface PlannerOutput {
   summary: string;
   targetFiles: string[];

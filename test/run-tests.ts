@@ -6,6 +6,7 @@ import {
   testOrchestratorDryRunSkipsApprovalAndApply,
   testOrchestratorRunsTestCommandAfterApply,
   testOrchestratorSkipsTestCommandWhenRejected,
+  testOrchestratorStopsWhenIntakeIsNotReady,
   testOrchestratorRetriesAfterReviewRejection
 } from "./orchestrator.test.js";
 import { testApplyUnifiedPatchRejectsMismatchedContext, testApplyUnifiedPatchUpdatesMatchingHunk } from "./patch.test.js";
@@ -16,7 +17,11 @@ import {
   testExtractRetryRunOptionsUsesFallbackModel
 } from "./retryLog.test.js";
 import { testParseCommandLineKeepsQuotedArgs, testParseCommandLineRejectsUnclosedQuote } from "./testCommand.test.js";
-import { testParseJsonObjectAcceptsFencedJson, testWorkerValidationRequiresContentOrPatchForUpdate } from "./validation.test.js";
+import {
+  testIntakeValidationRequiresKnownRiskLevel,
+  testParseJsonObjectAcceptsFencedJson,
+  testWorkerValidationRequiresContentOrPatchForUpdate
+} from "./validation.test.js";
 import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths, testWorkspaceSearchTextFindsMatches } from "./workspace.test.js";
 
 const tests: Array<[string, () => void | Promise<void>]> = [
@@ -25,6 +30,7 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["workspace search text finds matches", testWorkspaceSearchTextFindsMatches],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
   ["worker validation requires content or patch for update", testWorkerValidationRequiresContentOrPatchForUpdate],
+  ["intake validation requires known risk level", testIntakeValidationRequiresKnownRiskLevel],
   ["apply unified patch updates matching hunk", testApplyUnifiedPatchUpdatesMatchingHunk],
   ["apply unified patch rejects mismatched context", testApplyUnifiedPatchRejectsMismatchedContext],
   ["parse command line keeps quoted args", testParseCommandLineKeepsQuotedArgs],
@@ -37,6 +43,7 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["orchestrator retries after review rejection", testOrchestratorRetriesAfterReviewRejection],
   ["orchestrator runs test command after apply", testOrchestratorRunsTestCommandAfterApply],
   ["orchestrator skips test command when rejected", testOrchestratorSkipsTestCommandWhenRejected],
+  ["orchestrator stops when intake is not ready", testOrchestratorStopsWhenIntakeIsNotReady],
   ["run log saves JSON file", testRunLogSavesJsonFile],
   ["run log lists and reads saved logs", testRunLogListsAndReadsSavedLogs],
   ["extract retry run options reads log fields", testExtractRetryRunOptionsReadsLogFields],

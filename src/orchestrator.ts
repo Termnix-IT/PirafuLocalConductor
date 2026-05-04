@@ -3,11 +3,11 @@ import { createUnifiedDiff } from "./diff.js";
 import { applyUnifiedPatch } from "./patch.js";
 import { parseJsonObject } from "./json.js";
 import type { ApprovalProvider } from "./approval.js";
-import { plannerMessages, reviewerMessages, workerMessages } from "./prompts.js";
+import { intakeMessages, plannerMessages, reviewerMessages, workerMessages } from "./prompts.js";
 import type { OllamaClient } from "./ollamaClient.js";
 import { runTestCommand, type TestCommandRunner } from "./testCommand.js";
-import type { PlannerOutput, PreparedEdit, ReviewerOutput, TestCommandResult, WorkerOutput } from "./types.js";
-import { validatePlannerOutput, validateReviewerOutput, validateWorkerOutput } from "./validation.js";
+import type { IntakeOutput, PlannerOutput, PreparedEdit, ReviewerOutput, TestCommandResult, WorkerOutput } from "./types.js";
+import { validateIntakeOutput, validatePlannerOutput, validateReviewerOutput, validateWorkerOutput } from "./validation.js";
 import { Workspace } from "./workspace.js";
 
 export interface RunOptions {
@@ -24,15 +24,17 @@ export interface RunOptions {
 }
 
 export interface RunResult {
-  planner: PlannerOutput;
-  worker: WorkerOutput;
-  reviewer: ReviewerOutput;
+  intake: IntakeOutput;
+  planner?: PlannerOutput;
+  worker?: WorkerOutput;
+  reviewer?: ReviewerOutput;
   workerAttempts: WorkerOutput[];
   reviewerAttempts: ReviewerOutput[];
   applied: string[];
   rejected: string[];
   dryRun: boolean;
   testResult?: TestCommandResult;
+  stoppedReason?: string;
 }
 
 export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
@@ -41,12 +43,39 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
 
   logger.log(`Workspace: ${workspace.root}`);
   logger.log(`Model: ${options.model}`);
-  logger.log("Planner: collecting file list and creating work plan...");
+  logger.log("Intake: collecting file list and search context...");
   const files = await workspace.listFiles();
   const searchQueries = deriveSearchQueries(options.task);
   const searchResults = await workspace.searchText(searchQueries);
   logger.log(`Search: ${searchResults.length} match(es) for ${searchQueries.length} query term(s).`);
-  const planner = validatePlannerOutput(parseJsonObject(await options.client.chatJson(plannerMessages(options.task, files, searchResults))));
+  logger.log("Intake: evaluating request clarity and routing...");
+  const intake = validateIntakeOutput(parseJsonObject(await options.client.chatJson(intakeMessages(options.task, files, searchResults))));
+  logger.log(`Intake summary: ${intake.summary}`);
+  logger.log(`Intake risk: ${intake.riskLevel}`);
+  for (const criterion of intake.acceptanceCriteria) {
+    logger.log(`Acceptance: ${criterion}`);
+  }
+  for (const constraint of intake.constraints) {
+    logger.log(`Constraint: ${constraint}`);
+  }
+  if (!intake.ready) {
+    for (const question of intake.questions) {
+      logger.log(`Question: ${question}`);
+    }
+    logger.log("Intake did not mark the request ready. No edits will be planned.");
+    return {
+      intake,
+      workerAttempts: [],
+      reviewerAttempts: [],
+      applied: [],
+      rejected: [],
+      dryRun: Boolean(options.dryRun),
+      stoppedReason: "intake-not-ready"
+    };
+  }
+
+  const task = intake.normalizedTask || options.task;
+  const planner = validatePlannerOutput(parseJsonObject(await options.client.chatJson(plannerMessages(task, files, searchResults))));
 
   logger.log(`Planner summary: ${planner.summary}`);
   const snapshots = await workspace.readSnapshots(planner.targetFiles);
@@ -65,7 +94,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
     const instruction = reviewFeedback
       ? `${planner.workerInstruction}\n\nReviewer rejected the previous diff. Address this feedback and return a revised complete edit set:\n${reviewFeedback}`
       : planner.workerInstruction;
-    worker = validateWorkerOutput(parseJsonObject(await options.client.chatJson(workerMessages(options.task, instruction, snapshots))));
+    worker = validateWorkerOutput(parseJsonObject(await options.client.chatJson(workerMessages(task, instruction, snapshots))));
     workerAttempts.push(worker);
 
     prepared = await prepareEdits(workspace, worker.edits);
@@ -75,7 +104,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
 
     logger.log(`Reviewer: reviewing proposed diff (${attemptLabel})...`);
     const combinedDiff = prepared.map((edit) => edit.diff).join("\n");
-    reviewer = validateReviewerOutput(parseJsonObject(await options.client.chatJson(reviewerMessages(options.task, combinedDiff))));
+    reviewer = validateReviewerOutput(parseJsonObject(await options.client.chatJson(reviewerMessages(task, combinedDiff))));
     reviewerAttempts.push(reviewer);
 
     logger.log(`Reviewer approved: ${reviewer.approved}`);
@@ -103,6 +132,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   if (!reviewer.approved) {
     logger.log("Reviewer did not approve the proposed diff. No edits will be applied.");
     return {
+      intake,
       planner,
       worker,
       reviewer,
@@ -122,6 +152,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
     logger.log("Dry run enabled. No edits will be applied.");
     const testResult = await maybeRunTestCommand(options, workspace.root, logger);
     return {
+      intake,
       planner,
       worker,
       reviewer,
@@ -148,7 +179,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
 
   const testResult = applied.length > 0 ? await maybeRunTestCommand(options, workspace.root, logger) : undefined;
   logger.log(`Applied: ${applied.length}; Rejected: ${rejected.length}`);
-  return { planner, worker, reviewer, workerAttempts, reviewerAttempts, applied, rejected, dryRun: false, testResult };
+  return { intake, planner, worker, reviewer, workerAttempts, reviewerAttempts, applied, rejected, dryRun: false, testResult };
 }
 
 export async function prepareEdits(workspace: Workspace, edits: WorkerOutput["edits"]): Promise<PreparedEdit[]> {

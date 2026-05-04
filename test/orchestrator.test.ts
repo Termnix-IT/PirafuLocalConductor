@@ -14,6 +14,9 @@ class FakeClient {
   async chatJson(_messages: ChatMessage[]): Promise<string> {
     this.calls += 1;
     if (this.calls === 1) {
+      return intakeJson();
+    }
+    if (this.calls === 2) {
       return JSON.stringify({
         summary: "Update file",
         targetFiles: ["index.ts"],
@@ -21,7 +24,7 @@ class FakeClient {
         verification: ["Read file"]
       });
     }
-    if (this.calls === 2) {
+    if (this.calls === 3) {
       return JSON.stringify({
         summary: "Changed file",
         edits: [{ path: "index.ts", action: "update", reason: "requested", content: "export const value = 2;\n" }]
@@ -41,6 +44,9 @@ class RetryClient {
   async chatJson(_messages: ChatMessage[]): Promise<string> {
     this.calls += 1;
     if (this.calls === 1) {
+      return intakeJson();
+    }
+    if (this.calls === 2) {
       return JSON.stringify({
         summary: "Update file",
         targetFiles: ["index.ts"],
@@ -48,16 +54,16 @@ class RetryClient {
         verification: ["Read file"]
       });
     }
-    if (this.calls === 2) {
+    if (this.calls === 3) {
       return JSON.stringify({
         summary: "Bad change",
         edits: [{ path: "index.ts", action: "update", reason: "bad", content: "export const value = 99;\n" }]
       });
     }
-    if (this.calls === 3) {
+    if (this.calls === 4) {
       return JSON.stringify({ approved: false, findings: ["wrong value"], requiredChanges: ["use value 2"] });
     }
-    if (this.calls === 4) {
+    if (this.calls === 5) {
       return JSON.stringify({
         summary: "Revised change",
         edits: [{ path: "index.ts", action: "update", reason: "fixed", content: "export const value = 2;\n" }]
@@ -73,6 +79,9 @@ class PatchClient {
   async chatJson(_messages: ChatMessage[]): Promise<string> {
     this.calls += 1;
     if (this.calls === 1) {
+      return intakeJson();
+    }
+    if (this.calls === 2) {
       return JSON.stringify({
         summary: "Update file",
         targetFiles: ["index.ts"],
@@ -80,7 +89,7 @@ class PatchClient {
         verification: ["Read file"]
       });
     }
-    if (this.calls === 2) {
+    if (this.calls === 3) {
       return JSON.stringify({
         summary: "Changed file with patch",
         edits: [
@@ -95,6 +104,32 @@ class PatchClient {
     }
     return JSON.stringify({ approved: true, findings: [], requiredChanges: [] });
   }
+}
+
+class NotReadyClient {
+  async chatJson(_messages: ChatMessage[]): Promise<string> {
+    return JSON.stringify({
+      ready: false,
+      summary: "Request is too vague.",
+      normalizedTask: "",
+      acceptanceCriteria: [],
+      constraints: [],
+      questions: ["Which file should be changed?"],
+      riskLevel: "medium"
+    });
+  }
+}
+
+function intakeJson(): string {
+  return JSON.stringify({
+    ready: true,
+    summary: "Request is clear enough to plan.",
+    normalizedTask: "change value",
+    acceptanceCriteria: ["index.ts exports value 2"],
+    constraints: ["Keep relative paths"],
+    questions: [],
+    riskLevel: "low"
+  });
 }
 
 export async function testOrchestratorAppliesOnlyApprovedEdits(): Promise<void> {
@@ -279,6 +314,32 @@ export async function testOrchestratorAppliesPatchEdits(): Promise<void> {
 
     assert.deepEqual(result.applied, ["index.ts"]);
     assert.equal(await readFile(path.join(root, "index.ts"), "utf8"), "export const value = 2;\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+export async function testOrchestratorStopsWhenIntakeIsNotReady(): Promise<void> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
+  try {
+    await writeFile(path.join(root, "index.ts"), "export const value = 1;\n", "utf8");
+    const approval: ApprovalProvider = async () => {
+      throw new Error("approval should not be requested when intake stops");
+    };
+
+    const result = await runOrchestrator({
+      workspacePath: root,
+      task: "fix it",
+      model: "fake",
+      client: new NotReadyClient() as never,
+      approval,
+      logger: { log: () => undefined, error: () => undefined }
+    });
+
+    assert.equal(result.stoppedReason, "intake-not-ready");
+    assert.deepEqual(result.applied, []);
+    assert.equal(result.intake.questions[0], "Which file should be changed?");
+    assert.equal(await readFile(path.join(root, "index.ts"), "utf8"), "export const value = 1;\n");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
