@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import type { ChatMessage } from "../src/types.js";
 import { deriveSearchQueries, runOrchestrator } from "../src/orchestrator.js";
 import type { ApprovalProvider } from "../src/approval.js";
+import type { TestCommandRunner } from "../src/testCommand.js";
 
 class FakeClient {
   private calls = 0;
@@ -172,4 +173,61 @@ export async function testOrchestratorRetriesAfterReviewRejection(): Promise<voi
 
 export function testDeriveSearchQueriesUsesQuotedStrings(): void {
   assert.deepEqual(deriveSearchQueries("Change message to 'hello gemma4'."), ["hello gemma4", "message", "hello", "gemma4"]);
+}
+
+export async function testOrchestratorRunsTestCommandAfterApply(): Promise<void> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
+  try {
+    await writeFile(path.join(root, "index.ts"), "export const value = 1;\n", "utf8");
+    const approval: ApprovalProvider = async () => "approve";
+    const testCalls: string[] = [];
+    const testRunner: TestCommandRunner = async (command, cwd) => {
+      testCalls.push(`${cwd}:${command}`);
+      return { command, exitCode: 0, signal: null, stdout: "ok", stderr: "" };
+    };
+
+    const result = await runOrchestrator({
+      workspacePath: root,
+      task: "change value",
+      model: "fake",
+      client: new FakeClient() as never,
+      approval,
+      testCommand: "npm test",
+      testRunner,
+      logger: { log: () => undefined, error: () => undefined }
+    });
+
+    assert.deepEqual(result.applied, ["index.ts"]);
+    assert.equal(result.testResult?.exitCode, 0);
+    assert.deepEqual(testCalls, [`${root}:npm test`]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+export async function testOrchestratorSkipsTestCommandWhenRejected(): Promise<void> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
+  try {
+    await writeFile(path.join(root, "index.ts"), "export const value = 1;\n", "utf8");
+    const approval: ApprovalProvider = async () => "reject";
+    const testRunner: TestCommandRunner = async () => {
+      throw new Error("test command should not run when edits are rejected");
+    };
+
+    const result = await runOrchestrator({
+      workspacePath: root,
+      task: "change value",
+      model: "fake",
+      client: new FakeClient() as never,
+      approval,
+      testCommand: "npm test",
+      testRunner,
+      logger: { log: () => undefined, error: () => undefined }
+    });
+
+    assert.deepEqual(result.applied, []);
+    assert.equal(result.testResult, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 }

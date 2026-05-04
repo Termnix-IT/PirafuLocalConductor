@@ -4,7 +4,8 @@ import { parseJsonObject } from "./json.js";
 import type { ApprovalProvider } from "./approval.js";
 import { plannerMessages, reviewerMessages, workerMessages } from "./prompts.js";
 import type { OllamaClient } from "./ollamaClient.js";
-import type { PlannerOutput, PreparedEdit, ReviewerOutput, WorkerOutput } from "./types.js";
+import { runTestCommand, type TestCommandRunner } from "./testCommand.js";
+import type { PlannerOutput, PreparedEdit, ReviewerOutput, TestCommandResult, WorkerOutput } from "./types.js";
 import { validatePlannerOutput, validateReviewerOutput, validateWorkerOutput } from "./validation.js";
 import { Workspace } from "./workspace.js";
 
@@ -17,6 +18,8 @@ export interface RunOptions {
   client: OllamaClient;
   dryRun?: boolean;
   maxReviewRetries?: number;
+  testCommand?: string;
+  testRunner?: TestCommandRunner;
 }
 
 export interface RunResult {
@@ -28,6 +31,7 @@ export interface RunResult {
   applied: string[];
   rejected: string[];
   dryRun: boolean;
+  testResult?: TestCommandResult;
 }
 
 export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
@@ -115,6 +119,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
 
   if (options.dryRun) {
     logger.log("Dry run enabled. No edits will be applied.");
+    const testResult = await maybeRunTestCommand(options, workspace.root, logger);
     return {
       planner,
       worker,
@@ -123,7 +128,8 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
       reviewerAttempts,
       applied: [],
       rejected: prepared.map((edit) => edit.path),
-      dryRun: true
+      dryRun: true,
+      testResult
     };
   }
 
@@ -139,8 +145,9 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
     rejected.push(...prepared.map((edit) => edit.path));
   }
 
+  const testResult = applied.length > 0 ? await maybeRunTestCommand(options, workspace.root, logger) : undefined;
   logger.log(`Applied: ${applied.length}; Rejected: ${rejected.length}`);
-  return { planner, worker, reviewer, workerAttempts, reviewerAttempts, applied, rejected, dryRun: false };
+  return { planner, worker, reviewer, workerAttempts, reviewerAttempts, applied, rejected, dryRun: false, testResult };
 }
 
 export async function prepareEdits(workspace: Workspace, edits: WorkerOutput["edits"]): Promise<PreparedEdit[]> {
@@ -198,3 +205,15 @@ const commonTaskWords = new Set([
   "to",
   "update"
 ]);
+
+async function maybeRunTestCommand(
+  options: RunOptions,
+  workspaceRoot: string,
+  logger: Pick<Console, "log" | "error">
+): Promise<TestCommandResult | undefined> {
+  if (!options.testCommand) {
+    return undefined;
+  }
+  const runner = options.testRunner ?? runTestCommand;
+  return runner(options.testCommand, workspaceRoot, logger);
+}

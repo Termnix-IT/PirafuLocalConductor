@@ -3,9 +3,12 @@ import {
   testOrchestratorBlocksUnapprovedReview,
   testDeriveSearchQueriesUsesQuotedStrings,
   testOrchestratorDryRunSkipsApprovalAndApply,
+  testOrchestratorRunsTestCommandAfterApply,
+  testOrchestratorSkipsTestCommandWhenRejected,
   testOrchestratorRetriesAfterReviewRejection
 } from "./orchestrator.test.js";
 import { testRunLogSavesJsonFile } from "./runLog.test.js";
+import { testParseCommandLineKeepsQuotedArgs, testParseCommandLineRejectsUnclosedQuote } from "./testCommand.test.js";
 import { testParseJsonObjectAcceptsFencedJson, testWorkerValidationRequiresContentForUpdate } from "./validation.test.js";
 import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths, testWorkspaceSearchTextFindsMatches } from "./workspace.test.js";
 
@@ -15,11 +18,15 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["workspace search text finds matches", testWorkspaceSearchTextFindsMatches],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
   ["worker validation requires content for update", testWorkerValidationRequiresContentForUpdate],
+  ["parse command line keeps quoted args", testParseCommandLineKeepsQuotedArgs],
+  ["parse command line rejects unclosed quote", testParseCommandLineRejectsUnclosedQuote],
   ["derive search queries uses quoted strings", testDeriveSearchQueriesUsesQuotedStrings],
   ["orchestrator applies only approved edits", testOrchestratorAppliesOnlyApprovedEdits],
   ["orchestrator blocks unapproved review", testOrchestratorBlocksUnapprovedReview],
   ["orchestrator dry run skips approval and apply", testOrchestratorDryRunSkipsApprovalAndApply],
   ["orchestrator retries after review rejection", testOrchestratorRetriesAfterReviewRejection],
+  ["orchestrator runs test command after apply", testOrchestratorRunsTestCommandAfterApply],
+  ["orchestrator skips test command when rejected", testOrchestratorSkipsTestCommandWhenRejected],
   ["run log saves JSON file", testRunLogSavesJsonFile]
 ];
 

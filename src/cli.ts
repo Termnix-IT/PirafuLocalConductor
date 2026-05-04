@@ -13,6 +13,7 @@ interface CliOptions {
   dryRun: boolean;
   reviewRetries: number;
   logDir: string;
+  testCommand?: string;
   help: boolean;
 }
 
@@ -57,6 +58,7 @@ async function main(argv: string[]): Promise<void> {
         approval: createInteractiveApproval(),
         dryRun: options.dryRun,
         maxReviewRetries: options.reviewRetries,
+        testCommand: options.testCommand,
         logger
       });
     } catch (error) {
@@ -124,6 +126,8 @@ function parseArgs(argv: string[]): CliOptions {
       options.reviewRetries = parseNonNegativeInteger(arg, requireValue(arg, args.shift()));
     } else if (arg === "--log-dir") {
       options.logDir = requireValue(arg, args.shift());
+    } else if (arg === "--test-command") {
+      options.testCommand = requireValue(arg, args.shift());
     } else {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -152,7 +156,7 @@ function printHelp(): void {
 
 Usage:
   pirafu doctor [--model gemma4:latest]
-  pirafu run --workspace <path> --task <request> [--model gemma4:latest] [--dry-run] [--review-retries 1] [--log-dir .pirafu/logs]
+  pirafu run --workspace <path> --task <request> [--model gemma4:latest] [--dry-run] [--review-retries 1] [--test-command "npm test"] [--log-dir .pirafu/logs]
 `);
 }
 

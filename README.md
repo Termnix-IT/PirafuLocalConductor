@@ -20,9 +20,11 @@ Before planning, Pirafu scans workspace text for task keywords and quoted string
 ```powershell
 node dist/src/cli.js run --workspace C:\path\to\project --task "Make the requested change" --dry-run
 node dist/src/cli.js run --workspace C:\path\to\project --task "Make the requested change" --review-retries 2
+node dist/src/cli.js run --workspace C:\path\to\project --task "Make the requested change" --test-command "npm test"
 node dist/src/cli.js run --workspace C:\path\to\project --task "Make the requested change" --log-dir .pirafu/logs
 ```
 
 - `--dry-run` shows the reviewed diff and writes nothing.
 - `--review-retries` asks Worker for a revised proposal when Reviewer rejects a diff.
+- `--test-command` runs an explicit validation command in the target workspace after approved changes are applied. In dry-run mode it runs after the reviewed diff is produced without applying files.
 - `--log-dir` controls where JSON run logs are saved. The default is `.pirafu/logs`.

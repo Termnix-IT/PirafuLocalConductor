@@ -51,3 +51,11 @@ export interface PreparedEdit extends ProposedEdit {
   afterContent: string;
   diff: string;
 }
+
+export interface TestCommandResult {
+  command: string;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
+}
