@@ -38,6 +38,10 @@ export async function runChat(options: ChatOptions): Promise<void> {
       if (line === "/exit" || line === "/quit") {
         break;
       }
+      if (isStrayApprovalToken(line)) {
+        output.write("No pending approval. Ignored approval response.\n");
+        continue;
+      }
       if (line.startsWith("/")) {
         const result = await handleChatCommand(line, options, dryRun, language, lastLogId, taskStatus, prompt);
         dryRun = result.dryRun;
@@ -331,4 +335,9 @@ export function parseLanguage(value: string | undefined): ResponseLanguage | und
 
 export function formatLanguage(language: ResponseLanguage): string {
   return language === "ja" ? "ja (Japanese)" : "en (English)";
+}
+
+export function isStrayApprovalToken(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "y" || normalized === "yes" || normalized === "n" || normalized === "no" || normalized === "q";
 }

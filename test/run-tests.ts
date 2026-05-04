@@ -15,11 +15,14 @@ import {
   testCreateRunningStatusIncludesTask,
   testFormatLanguageLabelsState,
   testFormatTaskStatusShowsStateAndLog,
+  testIsStrayApprovalTokenDetectsApprovalReplies,
   testParseLanguageAcceptsJapaneseAndEnglishAliases,
   testSplitInputLinesNormalizesWindowsNewlines
 } from "./chat.test.js";
 import { testApplyUnifiedPatchRejectsMismatchedContext, testApplyUnifiedPatchUpdatesMatchingHunk } from "./patch.test.js";
 import { testRunLogListsAndReadsSavedLogs, testRunLogSavesJsonFile } from "./runLog.test.js";
+import { testWorkerPromptRequiresAsciiRuntimeOutput } from "./prompts.test.js";
+import { testReviewerPromptRejectsNonAsciiRuntimeOutput, testWorkerPromptSeparatesCommentsFromRuntimeOutput } from "./reviewerPrompt.test.js";
 import {
   testExtractRetryRunOptionsReadsLogFields,
   testExtractRetryRunOptionsRequiresTaskAndWorkspace,
@@ -47,7 +50,11 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["format language labels state", testFormatLanguageLabelsState],
   ["format task status shows state and log", testFormatTaskStatusShowsStateAndLog],
   ["create running status includes task", testCreateRunningStatusIncludesTask],
+  ["stray approval token detects approval replies", testIsStrayApprovalTokenDetectsApprovalReplies],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
+  ["worker prompt requires ASCII runtime output", testWorkerPromptRequiresAsciiRuntimeOutput],
+  ["worker prompt separates comments from runtime output", testWorkerPromptSeparatesCommentsFromRuntimeOutput],
+  ["reviewer prompt rejects non-ASCII runtime output", testReviewerPromptRejectsNonAsciiRuntimeOutput],
   ["worker validation requires content or patch for update", testWorkerValidationRequiresContentOrPatchForUpdate],
   ["worker validation wraps single edit object", testWorkerValidationWrapsSingleEditObject],
   ["worker validation recovers root edit shape", testWorkerValidationRecoversRootEditShape],

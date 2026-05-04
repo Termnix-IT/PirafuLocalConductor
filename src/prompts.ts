@@ -60,6 +60,8 @@ export function workerMessages(task: string, instruction: string, snapshots: Fil
         "Prefer create and update. Delete is reserved for files that are clearly obsolete.",
         "For update, prefer patch when the change is small. Use content when creating files or when full replacement is safer.",
         "Do not provide both content and patch for the same edit unless content is the authoritative full replacement.",
+        "When generating source code, keep runtime user-facing output strings, print/error/usage/help text, sample printed text, and CLI messages ASCII-only unless the user explicitly requests non-ASCII output.",
+        "Code comments may follow the selected response language, but strings printed or shown by generated programs must remain ASCII-only by default.",
         languageInstruction(language)
       ].join("\n")
     },
@@ -79,6 +81,7 @@ export function reviewerMessages(task: string, diff: string, language: ResponseL
         "Return only JSON.",
         "Schema: {\"approved\":boolean,\"findings\":[\"string\"],\"requiredChanges\":[\"string\"]}.",
         "Focus on dangerous file operations, missed requirements, and test gaps.",
+        "Reject generated source code that contains non-ASCII runtime output strings, print/error/usage/help text, or CLI messages unless the user explicitly requested non-ASCII output.",
         languageInstruction(language)
       ].join("\n")
     },

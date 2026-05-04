@@ -5,6 +5,7 @@ import {
   createRunningStatus,
   formatLanguage,
   formatTaskStatus,
+  isStrayApprovalToken,
   parseLanguage,
   splitInputLines
 } from "../src/chat.js";
@@ -41,4 +42,12 @@ export function testCreateRunningStatusIncludesTask(): void {
     task: "make file",
     message: "Task is running."
   });
+}
+
+export function testIsStrayApprovalTokenDetectsApprovalReplies(): void {
+  assert.equal(isStrayApprovalToken("y"), true);
+  assert.equal(isStrayApprovalToken("yes"), true);
+  assert.equal(isStrayApprovalToken("n"), true);
+  assert.equal(isStrayApprovalToken("q"), true);
+  assert.equal(isStrayApprovalToken("make file"), false);
 }
