@@ -3,12 +3,16 @@ import { createInteractiveApproval } from "./approval.js";
 import { runDoctor } from "./doctor.js";
 import { OllamaClient } from "./ollamaClient.js";
 import { runOrchestrator } from "./orchestrator.js";
+import { saveRunLog, SessionLogger } from "./runLog.js";
 
 interface CliOptions {
   command?: string;
   workspace?: string;
   task?: string;
   model: string;
+  dryRun: boolean;
+  reviewRetries: number;
+  logDir: string;
   help: boolean;
 }
 
@@ -42,13 +46,44 @@ async function main(argv: string[]): Promise<void> {
     }
 
     const client = new OllamaClient({ model: options.model });
-    await runOrchestrator({
-      workspacePath: options.workspace,
+    const logger = new SessionLogger();
+    let result: unknown;
+    try {
+      result = await runOrchestrator({
+        workspacePath: options.workspace,
+        task: options.task,
+        model: options.model,
+        client,
+        approval: createInteractiveApproval(),
+        dryRun: options.dryRun,
+        maxReviewRetries: options.reviewRetries,
+        logger
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const logPath = await saveRunLog({
+        logDir: options.logDir,
+        command: options.command,
+        task: options.task,
+        workspace: options.workspace,
+        model: options.model,
+        events: logger.snapshot(),
+        error: message
+      });
+      console.error(`Run log saved: ${logPath}`);
+      throw error;
+    }
+
+    const logPath = await saveRunLog({
+      logDir: options.logDir,
+      command: options.command,
       task: options.task,
+      workspace: options.workspace,
       model: options.model,
-      client,
-      approval: createInteractiveApproval()
+      events: logger.snapshot(),
+      result
     });
+    console.log(`Run log saved: ${logPath}`);
     return;
   }
 
@@ -56,7 +91,13 @@ async function main(argv: string[]): Promise<void> {
 }
 
 function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = { model: defaultModel, help: false };
+  const options: CliOptions = {
+    model: defaultModel,
+    dryRun: false,
+    reviewRetries: 1,
+    logDir: ".pirafu/logs",
+    help: false
+  };
   const args = [...argv];
   if (args[0] === "--help" || args[0] === "-h") {
     return { ...options, help: true };
@@ -77,12 +118,26 @@ function parseArgs(argv: string[]): CliOptions {
       options.task = requireValue(arg, args.shift());
     } else if (arg === "--model") {
       options.model = requireValue(arg, args.shift());
+    } else if (arg === "--dry-run") {
+      options.dryRun = true;
+    } else if (arg === "--review-retries") {
+      options.reviewRetries = parseNonNegativeInteger(arg, requireValue(arg, args.shift()));
+    } else if (arg === "--log-dir") {
+      options.logDir = requireValue(arg, args.shift());
     } else {
       throw new Error(`Unknown option: ${arg}`);
     }
   }
 
   return options;
+}
+
+function parseNonNegativeInteger(flag: string, value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== value) {
+    throw new Error(`${flag} requires a non-negative integer.`);
+  }
+  return parsed;
 }
 
 function requireValue(flag: string, value: string | undefined): string {
@@ -97,7 +152,7 @@ function printHelp(): void {
 
 Usage:
   pirafu doctor [--model gemma4:latest]
-  pirafu run --workspace <path> --task <request> [--model gemma4:latest]
+  pirafu run --workspace <path> --task <request> [--model gemma4:latest] [--dry-run] [--review-retries 1] [--log-dir .pirafu/logs]
 `);
 }
 

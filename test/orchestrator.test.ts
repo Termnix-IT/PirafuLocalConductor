@@ -34,11 +34,46 @@ class FakeClient {
   }
 }
 
+class RetryClient {
+  private calls = 0;
+
+  async chatJson(_messages: ChatMessage[]): Promise<string> {
+    this.calls += 1;
+    if (this.calls === 1) {
+      return JSON.stringify({
+        summary: "Update file",
+        targetFiles: ["index.ts"],
+        workerInstruction: "Change value to 2.",
+        verification: ["Read file"]
+      });
+    }
+    if (this.calls === 2) {
+      return JSON.stringify({
+        summary: "Bad change",
+        edits: [{ path: "index.ts", action: "update", reason: "bad", content: "export const value = 99;\n" }]
+      });
+    }
+    if (this.calls === 3) {
+      return JSON.stringify({ approved: false, findings: ["wrong value"], requiredChanges: ["use value 2"] });
+    }
+    if (this.calls === 4) {
+      return JSON.stringify({
+        summary: "Revised change",
+        edits: [{ path: "index.ts", action: "update", reason: "fixed", content: "export const value = 2;\n" }]
+      });
+    }
+    return JSON.stringify({ approved: true, findings: [], requiredChanges: [] });
+  }
+}
+
 export async function testOrchestratorAppliesOnlyApprovedEdits(): Promise<void> {
   const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
   try {
     await writeFile(path.join(root, "index.ts"), "export const value = 1;\n", "utf8");
-    const approval: ApprovalProvider = async () => "reject";
+    const approval: ApprovalProvider = async (edits) => {
+      assert.equal(edits.length, 1);
+      return "reject";
+    };
 
     const result = await runOrchestrator({
       workspacePath: root,
@@ -71,12 +106,65 @@ export async function testOrchestratorBlocksUnapprovedReview(): Promise<void> {
       model: "fake",
       client: new FakeClient(false) as never,
       approval,
+      maxReviewRetries: 0,
       logger: { log: () => undefined, error: () => undefined }
     });
 
     assert.deepEqual(result.applied, []);
     assert.deepEqual(result.rejected, ["index.ts"]);
     assert.equal(await readFile(path.join(root, "index.ts"), "utf8"), "export const value = 1;\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+export async function testOrchestratorDryRunSkipsApprovalAndApply(): Promise<void> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
+  try {
+    await writeFile(path.join(root, "index.ts"), "export const value = 1;\n", "utf8");
+    const approval: ApprovalProvider = async () => {
+      throw new Error("approval should not be requested during dry run");
+    };
+
+    const result = await runOrchestrator({
+      workspacePath: root,
+      task: "change value",
+      model: "fake",
+      client: new FakeClient() as never,
+      approval,
+      dryRun: true,
+      logger: { log: () => undefined, error: () => undefined }
+    });
+
+    assert.equal(result.dryRun, true);
+    assert.deepEqual(result.applied, []);
+    assert.deepEqual(result.rejected, ["index.ts"]);
+    assert.equal(await readFile(path.join(root, "index.ts"), "utf8"), "export const value = 1;\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+export async function testOrchestratorRetriesAfterReviewRejection(): Promise<void> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
+  try {
+    await writeFile(path.join(root, "index.ts"), "export const value = 1;\n", "utf8");
+    const approval: ApprovalProvider = async () => "approve";
+
+    const result = await runOrchestrator({
+      workspacePath: root,
+      task: "change value",
+      model: "fake",
+      client: new RetryClient() as never,
+      approval,
+      maxReviewRetries: 1,
+      logger: { log: () => undefined, error: () => undefined }
+    });
+
+    assert.equal(result.workerAttempts.length, 2);
+    assert.equal(result.reviewerAttempts.length, 2);
+    assert.deepEqual(result.applied, ["index.ts"]);
+    assert.equal(await readFile(path.join(root, "index.ts"), "utf8"), "export const value = 2;\n");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -1,4 +1,10 @@
-import { testOrchestratorAppliesOnlyApprovedEdits, testOrchestratorBlocksUnapprovedReview } from "./orchestrator.test.js";
+import {
+  testOrchestratorAppliesOnlyApprovedEdits,
+  testOrchestratorBlocksUnapprovedReview,
+  testOrchestratorDryRunSkipsApprovalAndApply,
+  testOrchestratorRetriesAfterReviewRejection
+} from "./orchestrator.test.js";
+import { testRunLogSavesJsonFile } from "./runLog.test.js";
 import { testParseJsonObjectAcceptsFencedJson, testWorkerValidationRequiresContentForUpdate } from "./validation.test.js";
 import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths } from "./workspace.test.js";
 
@@ -8,7 +14,10 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
   ["worker validation requires content for update", testWorkerValidationRequiresContentForUpdate],
   ["orchestrator applies only approved edits", testOrchestratorAppliesOnlyApprovedEdits],
-  ["orchestrator blocks unapproved review", testOrchestratorBlocksUnapprovedReview]
+  ["orchestrator blocks unapproved review", testOrchestratorBlocksUnapprovedReview],
+  ["orchestrator dry run skips approval and apply", testOrchestratorDryRunSkipsApprovalAndApply],
+  ["orchestrator retries after review rejection", testOrchestratorRetriesAfterReviewRejection],
+  ["run log saves JSON file", testRunLogSavesJsonFile]
 ];
 
 let failed = 0;
