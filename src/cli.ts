@@ -3,7 +3,7 @@ import { createInteractiveApproval } from "./approval.js";
 import { runDoctor } from "./doctor.js";
 import { OllamaClient } from "./ollamaClient.js";
 import { runOrchestrator } from "./orchestrator.js";
-import { saveRunLog, SessionLogger } from "./runLog.js";
+import { listRunLogs, readRunLog, saveRunLog, SessionLogger } from "./runLog.js";
 
 interface CliOptions {
   command?: string;
@@ -14,6 +14,7 @@ interface CliOptions {
   reviewRetries: number;
   logDir: string;
   testCommand?: string;
+  positional: string[];
   help: boolean;
 }
 
@@ -27,6 +28,7 @@ async function main(argv: string[]): Promise<void> {
   }
 
   if (options.command === "doctor") {
+    ensureNoExtraArgs(options);
     const result = await runDoctor(options.model);
     console.log(`node: ${result.node}`);
     console.log(`npm: ${result.npm}`);
@@ -39,6 +41,7 @@ async function main(argv: string[]): Promise<void> {
   }
 
   if (options.command === "run") {
+    ensureNoExtraArgs(options);
     if (!options.workspace) {
       throw new Error("--workspace is required for run.");
     }
@@ -89,7 +92,37 @@ async function main(argv: string[]): Promise<void> {
     return;
   }
 
+  if (options.command === "logs") {
+    const subcommand = options.positional[0];
+    if (subcommand === "list") {
+      const logs = await listRunLogs(options.logDir);
+      if (logs.length === 0) {
+        console.log(`No run logs found in ${options.logDir}`);
+        return;
+      }
+      for (const log of logs) {
+        console.log(`${log.id}\t${log.modifiedTime}\t${log.path}`);
+      }
+      return;
+    }
+    if (subcommand === "show") {
+      const id = options.positional[1];
+      if (!id) {
+        throw new Error("logs show requires a log id or path.");
+      }
+      console.log(JSON.stringify(await readRunLog(options.logDir, id), null, 2));
+      return;
+    }
+    throw new Error("logs requires a subcommand: list or show.");
+  }
+
   throw new Error(`Unknown command: ${options.command}`);
+}
+
+function ensureNoExtraArgs(options: CliOptions): void {
+  if (options.positional.length > 0) {
+    throw new Error(`Unexpected argument(s): ${options.positional.join(", ")}`);
+  }
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -98,6 +131,7 @@ function parseArgs(argv: string[]): CliOptions {
     dryRun: false,
     reviewRetries: 1,
     logDir: ".pirafu/logs",
+    positional: [],
     help: false
   };
   const args = [...argv];
@@ -129,7 +163,7 @@ function parseArgs(argv: string[]): CliOptions {
     } else if (arg === "--test-command") {
       options.testCommand = requireValue(arg, args.shift());
     } else {
-      throw new Error(`Unknown option: ${arg}`);
+      options.positional.push(arg);
     }
   }
 
@@ -157,6 +191,8 @@ function printHelp(): void {
 Usage:
   pirafu doctor [--model gemma4:latest]
   pirafu run --workspace <path> --task <request> [--model gemma4:latest] [--dry-run] [--review-retries 1] [--test-command "npm test"] [--log-dir .pirafu/logs]
+  pirafu logs list [--log-dir .pirafu/logs]
+  pirafu logs show <id> [--log-dir .pirafu/logs]
 `);
 }
 

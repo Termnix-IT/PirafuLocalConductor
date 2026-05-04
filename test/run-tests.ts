@@ -9,7 +9,7 @@ import {
   testOrchestratorRetriesAfterReviewRejection
 } from "./orchestrator.test.js";
 import { testApplyUnifiedPatchRejectsMismatchedContext, testApplyUnifiedPatchUpdatesMatchingHunk } from "./patch.test.js";
-import { testRunLogSavesJsonFile } from "./runLog.test.js";
+import { testRunLogListsAndReadsSavedLogs, testRunLogSavesJsonFile } from "./runLog.test.js";
 import { testParseCommandLineKeepsQuotedArgs, testParseCommandLineRejectsUnclosedQuote } from "./testCommand.test.js";
 import { testParseJsonObjectAcceptsFencedJson, testWorkerValidationRequiresContentOrPatchForUpdate } from "./validation.test.js";
 import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths, testWorkspaceSearchTextFindsMatches } from "./workspace.test.js";
@@ -32,7 +32,8 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["orchestrator retries after review rejection", testOrchestratorRetriesAfterReviewRejection],
   ["orchestrator runs test command after apply", testOrchestratorRunsTestCommandAfterApply],
   ["orchestrator skips test command when rejected", testOrchestratorSkipsTestCommandWhenRejected],
-  ["run log saves JSON file", testRunLogSavesJsonFile]
+  ["run log saves JSON file", testRunLogSavesJsonFile],
+  ["run log lists and reads saved logs", testRunLogListsAndReadsSavedLogs]
 ];
 
 let failed = 0;
