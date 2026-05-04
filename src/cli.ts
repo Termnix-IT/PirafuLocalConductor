@@ -3,6 +3,7 @@ import { createInteractiveApproval } from "./approval.js";
 import { runDoctor } from "./doctor.js";
 import { OllamaClient } from "./ollamaClient.js";
 import { runOrchestrator } from "./orchestrator.js";
+import { extractRetryRunOptions } from "./retryLog.js";
 import { listRunLogs, readRunLog, saveRunLog, SessionLogger } from "./runLog.js";
 
 interface CliOptions {
@@ -48,47 +49,7 @@ async function main(argv: string[]): Promise<void> {
     if (!options.task) {
       throw new Error("--task is required for run.");
     }
-
-    const client = new OllamaClient({ model: options.model });
-    const logger = new SessionLogger();
-    let result: unknown;
-    try {
-      result = await runOrchestrator({
-        workspacePath: options.workspace,
-        task: options.task,
-        model: options.model,
-        client,
-        approval: createInteractiveApproval(),
-        dryRun: options.dryRun,
-        maxReviewRetries: options.reviewRetries,
-        testCommand: options.testCommand,
-        logger
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const logPath = await saveRunLog({
-        logDir: options.logDir,
-        command: options.command,
-        task: options.task,
-        workspace: options.workspace,
-        model: options.model,
-        events: logger.snapshot(),
-        error: message
-      });
-      console.error(`Run log saved: ${logPath}`);
-      throw error;
-    }
-
-    const logPath = await saveRunLog({
-      logDir: options.logDir,
-      command: options.command,
-      task: options.task,
-      workspace: options.workspace,
-      model: options.model,
-      events: logger.snapshot(),
-      result
-    });
-    console.log(`Run log saved: ${logPath}`);
+    await executeRun(options.command, options, options.task, options.workspace, options.model);
     return;
   }
 
@@ -116,7 +77,63 @@ async function main(argv: string[]): Promise<void> {
     throw new Error("logs requires a subcommand: list or show.");
   }
 
+  if (options.command === "retry" || options.command === "resume") {
+    const id = options.positional[0];
+    if (!id) {
+      throw new Error(`${options.command} requires a log id or path.`);
+    }
+    if (options.positional.length > 1) {
+      throw new Error(`Unexpected argument(s): ${options.positional.slice(1).join(", ")}`);
+    }
+    const retryOptions = extractRetryRunOptions(await readRunLog(options.logDir, id), options.model);
+    await executeRun(options.command, options, retryOptions.task, retryOptions.workspace, retryOptions.model);
+    return;
+  }
+
   throw new Error(`Unknown command: ${options.command}`);
+}
+
+async function executeRun(command: string, options: CliOptions, task: string, workspace: string, model: string): Promise<void> {
+  const client = new OllamaClient({ model });
+  const logger = new SessionLogger();
+  let result: unknown;
+  try {
+    result = await runOrchestrator({
+      workspacePath: workspace,
+      task,
+      model,
+      client,
+      approval: createInteractiveApproval(),
+      dryRun: options.dryRun,
+      maxReviewRetries: options.reviewRetries,
+      testCommand: options.testCommand,
+      logger
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const logPath = await saveRunLog({
+      logDir: options.logDir,
+      command,
+      task,
+      workspace,
+      model,
+      events: logger.snapshot(),
+      error: message
+    });
+    console.error(`Run log saved: ${logPath}`);
+    throw error;
+  }
+
+  const logPath = await saveRunLog({
+    logDir: options.logDir,
+    command,
+    task,
+    workspace,
+    model,
+    events: logger.snapshot(),
+    result
+  });
+  console.log(`Run log saved: ${logPath}`);
 }
 
 function ensureNoExtraArgs(options: CliOptions): void {
@@ -193,6 +210,7 @@ Usage:
   pirafu run --workspace <path> --task <request> [--model gemma4:latest] [--dry-run] [--review-retries 1] [--test-command "npm test"] [--log-dir .pirafu/logs]
   pirafu logs list [--log-dir .pirafu/logs]
   pirafu logs show <id> [--log-dir .pirafu/logs]
+  pirafu retry <id> [--dry-run] [--review-retries 1] [--test-command "npm test"] [--log-dir .pirafu/logs]
 `);
 }
 

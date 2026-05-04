@@ -10,6 +10,11 @@ import {
 } from "./orchestrator.test.js";
 import { testApplyUnifiedPatchRejectsMismatchedContext, testApplyUnifiedPatchUpdatesMatchingHunk } from "./patch.test.js";
 import { testRunLogListsAndReadsSavedLogs, testRunLogSavesJsonFile } from "./runLog.test.js";
+import {
+  testExtractRetryRunOptionsReadsLogFields,
+  testExtractRetryRunOptionsRequiresTaskAndWorkspace,
+  testExtractRetryRunOptionsUsesFallbackModel
+} from "./retryLog.test.js";
 import { testParseCommandLineKeepsQuotedArgs, testParseCommandLineRejectsUnclosedQuote } from "./testCommand.test.js";
 import { testParseJsonObjectAcceptsFencedJson, testWorkerValidationRequiresContentOrPatchForUpdate } from "./validation.test.js";
 import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths, testWorkspaceSearchTextFindsMatches } from "./workspace.test.js";
@@ -33,7 +38,10 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["orchestrator runs test command after apply", testOrchestratorRunsTestCommandAfterApply],
   ["orchestrator skips test command when rejected", testOrchestratorSkipsTestCommandWhenRejected],
   ["run log saves JSON file", testRunLogSavesJsonFile],
-  ["run log lists and reads saved logs", testRunLogListsAndReadsSavedLogs]
+  ["run log lists and reads saved logs", testRunLogListsAndReadsSavedLogs],
+  ["extract retry run options reads log fields", testExtractRetryRunOptionsReadsLogFields],
+  ["extract retry run options uses fallback model", testExtractRetryRunOptionsUsesFallbackModel],
+  ["extract retry run options requires task and workspace", testExtractRetryRunOptionsRequiresTaskAndWorkspace]
 ];
 
 let failed = 0;

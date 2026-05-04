@@ -26,6 +26,7 @@ node dist/src/cli.js run --workspace C:\path\to\project --task "Make the request
 node dist/src/cli.js run --workspace C:\path\to\project --task "Make the requested change" --log-dir .pirafu/logs
 node dist/src/cli.js logs list
 node dist/src/cli.js logs show pirafu-2026-05-04T00-00-00-000Z
+node dist/src/cli.js retry pirafu-2026-05-04T00-00-00-000Z --dry-run
 ```
 
 - `--dry-run` shows the reviewed diff and writes nothing.
@@ -33,3 +34,4 @@ node dist/src/cli.js logs show pirafu-2026-05-04T00-00-00-000Z
 - `--test-command` runs an explicit validation command in the target workspace after approved changes are applied. In dry-run mode it runs after the reviewed diff is produced without applying files.
 - `--log-dir` controls where JSON run logs are saved. The default is `.pirafu/logs`.
 - `logs list` and `logs show` inspect saved JSON run logs.
+- `retry` and `resume` rerun a saved log's task, workspace, and model. Current flags such as `--dry-run`, `--review-retries`, and `--test-command` still apply.
