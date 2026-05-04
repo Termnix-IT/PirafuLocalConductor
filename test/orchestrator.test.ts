@@ -106,6 +106,35 @@ class PatchClient {
   }
 }
 
+class MalformedReviewerClient {
+  private calls = 0;
+
+  async chatJson(_messages: ChatMessage[]): Promise<string> {
+    this.calls += 1;
+    if (this.calls === 1) {
+      return intakeJson();
+    }
+    if (this.calls === 2) {
+      return JSON.stringify({
+        summary: "Update file",
+        targetFiles: ["index.ts"],
+        workerInstruction: "Change value to 2.",
+        verification: ["Read file"]
+      });
+    }
+    if (this.calls === 3) {
+      return JSON.stringify({
+        summary: "Changed file",
+        edits: [{ path: "index.ts", action: "update", reason: "requested", content: "export const value = 2;\n" }]
+      });
+    }
+    if (this.calls === 4) {
+      return "The diff looks good.";
+    }
+    return JSON.stringify({ approved: true, findings: [], requiredChanges: [] });
+  }
+}
+
 class NotReadyClient {
   async chatJson(_messages: ChatMessage[]): Promise<string> {
     return JSON.stringify({
@@ -340,6 +369,28 @@ export async function testOrchestratorStopsWhenIntakeIsNotReady(): Promise<void>
     assert.deepEqual(result.applied, []);
     assert.equal(result.intake.questions[0], "Which file should be changed?");
     assert.equal(await readFile(path.join(root, "index.ts"), "utf8"), "export const value = 1;\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+export async function testOrchestratorRepairsMalformedReviewerJson(): Promise<void> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-run-"));
+  try {
+    await writeFile(path.join(root, "index.ts"), "export const value = 1;\n", "utf8");
+    const approval: ApprovalProvider = async () => "approve";
+
+    const result = await runOrchestrator({
+      workspacePath: root,
+      task: "change value",
+      model: "fake",
+      client: new MalformedReviewerClient() as never,
+      approval,
+      logger: { log: () => undefined, error: () => undefined }
+    });
+
+    assert.deepEqual(result.applied, ["index.ts"]);
+    assert.equal(result.reviewer?.approved, true);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

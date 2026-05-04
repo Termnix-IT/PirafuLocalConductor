@@ -5,6 +5,7 @@ import type { PreparedEdit } from "./types.js";
 
 export type ApprovalDecision = "approve" | "reject" | "quit";
 export type ApprovalProvider = (edits: PreparedEdit[]) => Promise<ApprovalDecision>;
+export type QuestionFn = (query: string) => Promise<string>;
 
 export function createInteractiveApproval(): ApprovalProvider {
   return async (edits) => {
@@ -30,13 +31,17 @@ export function createInteractiveApproval(): ApprovalProvider {
 }
 
 export function createReadlineApproval(rl: Interface): ApprovalProvider {
+  return createQuestionApproval((query) => rl.question(query));
+}
+
+export function createQuestionApproval(question: QuestionFn): ApprovalProvider {
   return async (edits) => {
     for (const edit of edits) {
       output.write(`\n${edit.diff}\nReason: ${edit.reason}\n`);
     }
 
     const fileList = edits.map((edit) => edit.path).join(", ");
-    const answer = (await rl.question(`Apply all ${edits.length} proposed edit(s) (${fileList})? [y/N/q] `)).trim().toLowerCase();
+    const answer = (await question(`Apply all ${edits.length} proposed edit(s) (${fileList})? [y/N/q] `)).trim().toLowerCase();
     if (answer === "y" || answer === "yes") {
       return "approve";
     }

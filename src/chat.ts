@@ -1,7 +1,6 @@
 import readline from "node:readline/promises";
-import type { Interface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { createReadlineApproval } from "./approval.js";
+import { createQuestionApproval } from "./approval.js";
 import { runDoctor } from "./doctor.js";
 import { OllamaClient } from "./ollamaClient.js";
 import { runOrchestrator } from "./orchestrator.js";
@@ -18,7 +17,7 @@ export interface ChatOptions {
 }
 
 export async function runChat(options: ChatOptions): Promise<void> {
-  const rl = readline.createInterface({ input, output });
+  const prompt = await createPrompt();
   let dryRun = options.dryRun;
   let lastLogId: string | undefined;
 
@@ -26,15 +25,18 @@ export async function runChat(options: ChatOptions): Promise<void> {
 
   try {
     while (true) {
-      const line = (await rl.question("pirafu> ")).trim();
+      const line = (await prompt.question("pirafu> ")).trim();
       if (!line) {
+        if (prompt.done) {
+          break;
+        }
         continue;
       }
       if (line === "/exit" || line === "/quit") {
         break;
       }
       if (line.startsWith("/")) {
-        const result = await handleChatCommand(line, options, dryRun, lastLogId, rl);
+        const result = await handleChatCommand(line, options, dryRun, lastLogId, prompt);
         dryRun = result.dryRun;
         lastLogId = result.lastLogId ?? lastLogId;
         if (result.exit) {
@@ -43,11 +45,17 @@ export async function runChat(options: ChatOptions): Promise<void> {
         continue;
       }
 
-      lastLogId = await executeChatTask(line, options, dryRun, rl);
+      lastLogId = await executeChatTask(line, options, dryRun, prompt);
     }
   } finally {
-    rl.close();
+    prompt.close();
   }
+}
+
+interface Prompt {
+  done: boolean;
+  question(query: string): Promise<string>;
+  close(): void;
 }
 
 interface ChatCommandResult {
@@ -61,7 +69,7 @@ async function handleChatCommand(
   options: ChatOptions,
   dryRun: boolean,
   lastLogId: string | undefined,
-  rl: Interface
+  prompt: Prompt
 ): Promise<ChatCommandResult> {
   const [command, ...args] = line.split(/\s+/);
   if (command === "/help") {
@@ -105,7 +113,7 @@ async function handleChatCommand(
   if (command === "/retry") {
     const id = resolveChatLogId(args[0], lastLogId);
     const retryOptions = extractRetryRunOptions(await readRunLog(options.logDir, id), options.model);
-    const nextLogId = await executeChatTask(retryOptions.task, { ...options, workspace: retryOptions.workspace, model: retryOptions.model }, dryRun, rl);
+    const nextLogId = await executeChatTask(retryOptions.task, { ...options, workspace: retryOptions.workspace, model: retryOptions.model }, dryRun, prompt);
     return { dryRun, lastLogId: nextLogId };
   }
   if (command === "/dry-run") {
@@ -130,7 +138,7 @@ async function executeChatTask(
   task: string,
   options: ChatOptions,
   dryRun: boolean,
-  rl: Interface
+  prompt: Prompt
 ): Promise<string> {
   const client = new OllamaClient({ model: options.model });
   const logger = new SessionLogger();
@@ -141,7 +149,7 @@ async function executeChatTask(
       task,
       model: options.model,
       client,
-      approval: createReadlineApproval(rl),
+      approval: createQuestionApproval((query) => prompt.question(query)),
       dryRun,
       maxReviewRetries: options.reviewRetries,
       testCommand: options.testCommand,
@@ -190,4 +198,41 @@ function resolveChatLogId(value: string | undefined, lastLogId: string | undefin
 
 export function chatLogPathToId(logPath: string): string {
   return logPath.replace(/\\/g, "/").split("/").pop()?.replace(/\.json$/i, "") ?? logPath;
+}
+
+async function createPrompt(): Promise<Prompt> {
+  if (input.isTTY) {
+    const rl = readline.createInterface({ input, output });
+    return {
+      done: false,
+      question: (query) => rl.question(query),
+      close: () => rl.close()
+    };
+  }
+
+  const lines = await readAllInputLines();
+  return {
+    get done() {
+      return lines.length === 0;
+    },
+    async question(query: string) {
+      output.write(query);
+      return lines.shift() ?? "";
+    },
+    close() {
+      // Buffered non-TTY input does not need explicit closing.
+    }
+  };
+}
+
+async function readAllInputLines(): Promise<string[]> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of input) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+  }
+  return splitInputLines(Buffer.concat(chunks));
+}
+
+export function splitInputLines(buffer: Buffer): string[] {
+  return buffer.toString("utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
 }

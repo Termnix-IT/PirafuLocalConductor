@@ -6,7 +6,7 @@ import type { ApprovalProvider } from "./approval.js";
 import { intakeMessages, plannerMessages, reviewerMessages, workerMessages } from "./prompts.js";
 import type { OllamaClient } from "./ollamaClient.js";
 import { runTestCommand, type TestCommandRunner } from "./testCommand.js";
-import type { IntakeOutput, PlannerOutput, PreparedEdit, ReviewerOutput, TestCommandResult, WorkerOutput } from "./types.js";
+import type { ChatMessage, IntakeOutput, PlannerOutput, PreparedEdit, ReviewerOutput, TestCommandResult, WorkerOutput } from "./types.js";
 import { validateIntakeOutput, validatePlannerOutput, validateReviewerOutput, validateWorkerOutput } from "./validation.js";
 import { Workspace } from "./workspace.js";
 
@@ -49,7 +49,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   const searchResults = await workspace.searchText(searchQueries);
   logger.log(`Search: ${searchResults.length} match(es) for ${searchQueries.length} query term(s).`);
   logger.log("Intake: evaluating request clarity and routing...");
-  const intake = validateIntakeOutput(parseJsonObject(await options.client.chatJson(intakeMessages(options.task, files, searchResults))));
+  const intake = await requestValidatedJson(options.client, intakeMessages(options.task, files, searchResults), validateIntakeOutput, "intake output");
   logger.log(`Intake summary: ${intake.summary}`);
   logger.log(`Intake risk: ${intake.riskLevel}`);
   for (const criterion of intake.acceptanceCriteria) {
@@ -75,7 +75,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   }
 
   const task = intake.normalizedTask || options.task;
-  const planner = validatePlannerOutput(parseJsonObject(await options.client.chatJson(plannerMessages(task, files, searchResults))));
+  const planner = await requestValidatedJson(options.client, plannerMessages(task, files, searchResults), validatePlannerOutput, "planner output");
 
   logger.log(`Planner summary: ${planner.summary}`);
   const snapshots = await workspace.readSnapshots(planner.targetFiles);
@@ -94,7 +94,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
     const instruction = reviewFeedback
       ? `${planner.workerInstruction}\n\nReviewer rejected the previous diff. Address this feedback and return a revised complete edit set:\n${reviewFeedback}`
       : planner.workerInstruction;
-    worker = validateWorkerOutput(parseJsonObject(await options.client.chatJson(workerMessages(task, instruction, snapshots))));
+    worker = await requestValidatedJson(options.client, workerMessages(task, instruction, snapshots), validateWorkerOutput, "worker output");
     workerAttempts.push(worker);
 
     prepared = await prepareEdits(workspace, worker.edits);
@@ -104,7 +104,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
 
     logger.log(`Reviewer: reviewing proposed diff (${attemptLabel})...`);
     const combinedDiff = prepared.map((edit) => edit.diff).join("\n");
-    reviewer = validateReviewerOutput(parseJsonObject(await options.client.chatJson(reviewerMessages(task, combinedDiff))));
+    reviewer = await requestValidatedJson(options.client, reviewerMessages(task, combinedDiff), validateReviewerOutput, "reviewer output");
     reviewerAttempts.push(reviewer);
 
     logger.log(`Reviewer approved: ${reviewer.approved}`);
@@ -249,4 +249,27 @@ async function maybeRunTestCommand(
   }
   const runner = options.testRunner ?? runTestCommand;
   return runner(options.testCommand, workspaceRoot, logger);
+}
+
+async function requestValidatedJson<T>(
+  client: OllamaClient,
+  messages: ChatMessage[],
+  validate: (value: unknown) => T,
+  label: string
+): Promise<T> {
+  const raw = await client.chatJson(messages);
+  try {
+    return validate(parseJsonObject(raw));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const repaired = await client.chatJson([
+      ...messages,
+      { role: "assistant", content: raw },
+      {
+        role: "user",
+        content: `Your previous ${label} was invalid: ${message}. Return only one valid JSON object matching the requested schema. Do not include markdown or explanation.`
+      }
+    ]);
+    return validate(parseJsonObject(repaired));
+  }
 }

@@ -15,9 +15,9 @@ export function validateIntakeOutput(value: unknown): IntakeOutput {
     ready: record.ready,
     summary: assertString(record.summary, "summary"),
     normalizedTask: assertString(record.normalizedTask, "normalizedTask"),
-    acceptanceCriteria: assertStringArray(record.acceptanceCriteria, "acceptanceCriteria"),
-    constraints: assertStringArray(record.constraints, "constraints"),
-    questions: assertStringArray(record.questions, "questions"),
+    acceptanceCriteria: assertStringOrStringArray(record.acceptanceCriteria, "acceptanceCriteria"),
+    constraints: assertStringOrStringArray(record.constraints, "constraints"),
+    questions: assertStringOrStringArray(record.questions, "questions"),
     riskLevel
   };
 }
@@ -28,7 +28,7 @@ export function validatePlannerOutput(value: unknown): PlannerOutput {
     summary: assertString(record.summary, "summary"),
     targetFiles: assertStringArray(record.targetFiles, "targetFiles"),
     workerInstruction: assertString(record.workerInstruction, "workerInstruction"),
-    verification: assertStringArray(record.verification, "verification")
+    verification: assertStringOrStringArray(record.verification, "verification")
   };
 }
 
@@ -85,4 +85,11 @@ function asRecord(value: unknown, name: string): Record<string, unknown> {
     throw new Error(`${name} must be an object.`);
   }
   return value as Record<string, unknown>;
+}
+
+function assertStringOrStringArray(value: unknown, name: string): string[] {
+  if (typeof value === "string") {
+    return value.trim().length > 0 ? [value] : [];
+  }
+  return assertStringArray(value, name);
 }
