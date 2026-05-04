@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import type { ChatMessage } from "../src/types.js";
-import { runOrchestrator } from "../src/orchestrator.js";
+import { deriveSearchQueries, runOrchestrator } from "../src/orchestrator.js";
 import type { ApprovalProvider } from "../src/approval.js";
 
 class FakeClient {
@@ -168,4 +168,8 @@ export async function testOrchestratorRetriesAfterReviewRejection(): Promise<voi
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+}
+
+export function testDeriveSearchQueriesUsesQuotedStrings(): void {
+  assert.deepEqual(deriveSearchQueries("Change message to 'hello gemma4'."), ["hello gemma4", "message", "hello", "gemma4"]);
 }

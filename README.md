@@ -13,6 +13,8 @@ node dist/src/cli.js run --workspace C:\path\to\project --task "Make the request
 
 The CLI uses a safe `Planner -> Worker -> Reviewer` flow. The Worker proposes full-file edits, the Reviewer checks the combined diff, and files are written only after one batch approval.
 
+Before planning, Pirafu scans workspace text for task keywords and quoted strings. Those search hits are passed to Planner so it can choose target files from both file names and actual content matches.
+
 ## Useful run options
 
 ```powershell

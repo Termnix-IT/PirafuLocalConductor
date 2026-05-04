@@ -1,18 +1,21 @@
 import {
   testOrchestratorAppliesOnlyApprovedEdits,
   testOrchestratorBlocksUnapprovedReview,
+  testDeriveSearchQueriesUsesQuotedStrings,
   testOrchestratorDryRunSkipsApprovalAndApply,
   testOrchestratorRetriesAfterReviewRejection
 } from "./orchestrator.test.js";
 import { testRunLogSavesJsonFile } from "./runLog.test.js";
 import { testParseJsonObjectAcceptsFencedJson, testWorkerValidationRequiresContentForUpdate } from "./validation.test.js";
-import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths } from "./workspace.test.js";
+import { testWorkspaceAppliesCreateEdits, testWorkspaceRejectsEscapingPaths, testWorkspaceSearchTextFindsMatches } from "./workspace.test.js";
 
 const tests: Array<[string, () => void | Promise<void>]> = [
   ["workspace rejects absolute and escaping paths", testWorkspaceRejectsEscapingPaths],
   ["workspace applies approved create edits inside root", testWorkspaceAppliesCreateEdits],
+  ["workspace search text finds matches", testWorkspaceSearchTextFindsMatches],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
   ["worker validation requires content for update", testWorkerValidationRequiresContentForUpdate],
+  ["derive search queries uses quoted strings", testDeriveSearchQueriesUsesQuotedStrings],
   ["orchestrator applies only approved edits", testOrchestratorAppliesOnlyApprovedEdits],
   ["orchestrator blocks unapproved review", testOrchestratorBlocksUnapprovedReview],
   ["orchestrator dry run skips approval and apply", testOrchestratorDryRunSkipsApprovalAndApply],

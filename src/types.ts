@@ -38,6 +38,13 @@ export interface FileSnapshot {
   content: string;
 }
 
+export interface SearchResult {
+  path: string;
+  line: number;
+  preview: string;
+  query: string;
+}
+
 export interface PreparedEdit extends ProposedEdit {
   absolutePath: string;
   beforeContent: string;

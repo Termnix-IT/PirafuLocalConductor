@@ -38,7 +38,10 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   logger.log(`Model: ${options.model}`);
   logger.log("Planner: collecting file list and creating work plan...");
   const files = await workspace.listFiles();
-  const planner = validatePlannerOutput(parseJsonObject(await options.client.chatJson(plannerMessages(options.task, files))));
+  const searchQueries = deriveSearchQueries(options.task);
+  const searchResults = await workspace.searchText(searchQueries);
+  logger.log(`Search: ${searchResults.length} match(es) for ${searchQueries.length} query term(s).`);
+  const planner = validatePlannerOutput(parseJsonObject(await options.client.chatJson(plannerMessages(options.task, files, searchResults))));
 
   logger.log(`Planner summary: ${planner.summary}`);
   const snapshots = await workspace.readSnapshots(planner.targetFiles);
@@ -167,3 +170,31 @@ export async function prepareEdits(workspace: Workspace, edits: WorkerOutput["ed
 export function formatWorkspacePathForDisplay(workspacePath: string): string {
   return path.resolve(workspacePath);
 }
+
+export function deriveSearchQueries(task: string): string[] {
+  const quoted = [...task.matchAll(/["'`](.*?)["'`]/g)].map((match) => match[1] ?? "");
+  const words = task
+    .split(/[^\p{L}\p{N}_-]+/u)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 3)
+    .filter((word) => !commonTaskWords.has(word.toLowerCase()));
+  return [...new Set([...quoted, ...words])].slice(0, 12);
+}
+
+const commonTaskWords = new Set([
+  "add",
+  "change",
+  "create",
+  "delete",
+  "edit",
+  "file",
+  "fix",
+  "make",
+  "remove",
+  "replace",
+  "set",
+  "the",
+  "this",
+  "to",
+  "update"
+]);

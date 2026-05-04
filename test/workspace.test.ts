@@ -1,4 +1,4 @@
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
@@ -28,6 +28,23 @@ export async function testWorkspaceAppliesCreateEdits(): Promise<void> {
 
     const content = await readFile(path.join(root, "src", "example.ts"), "utf8");
     assert.equal(content, "export const value = 1;\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+export async function testWorkspaceSearchTextFindsMatches(): Promise<void> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "pirafu-workspace-"));
+  try {
+    await mkdir(path.join(root, "src"), { recursive: true });
+    await writeFile(path.join(root, "src", "message.ts"), "export const message = 'hello gemma4';\n", "utf8");
+    const workspace = await Workspace.open(root);
+
+    const results = await workspace.searchText(["gemma4"]);
+    assert.equal(results.length, 1);
+    assert.equal(results[0]?.path, "src/message.ts");
+    assert.equal(results[0]?.line, 1);
+    assert.equal(results[0]?.query, "gemma4");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

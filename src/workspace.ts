@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { FileSnapshot, ProposedEdit } from "./types.js";
+import type { FileSnapshot, ProposedEdit, SearchResult } from "./types.js";
 
 const ignoredDirectories = new Set([".git", "node_modules", "dist", ".cache", ".next", "coverage"]);
+const maxSearchFileBytes = 1024 * 1024;
 
 export class Workspace {
   readonly root: string;
@@ -65,6 +66,52 @@ export class Workspace {
     return Promise.all(unique.map((file) => this.readSnapshot(file)));
   }
 
+  async searchText(queries: string[], limit = 30): Promise<SearchResult[]> {
+    const normalizedQueries = normalizeQueries(queries);
+    if (normalizedQueries.length === 0) {
+      return [];
+    }
+
+    const files = await this.listFiles(500);
+    const results: SearchResult[] = [];
+    for (const file of files) {
+      if (results.length >= limit) {
+        break;
+      }
+
+      const absolutePath = this.resolveInside(file);
+      const stat = await fs.stat(absolutePath).catch(() => undefined);
+      if (!stat?.isFile() || stat.size > maxSearchFileBytes) {
+        continue;
+      }
+
+      const content = await fs.readFile(absolutePath, "utf8").catch(() => undefined);
+      if (content === undefined || content.includes("\u0000")) {
+        continue;
+      }
+
+      const lines = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+      for (let index = 0; index < lines.length; index += 1) {
+        if (results.length >= limit) {
+          break;
+        }
+        const line = lines[index];
+        const lowerLine = line.toLowerCase();
+        const query = normalizedQueries.find((candidate) => lowerLine.includes(candidate.toLowerCase()));
+        if (query) {
+          results.push({
+            path: file,
+            line: index + 1,
+            preview: line.trim().slice(0, 240),
+            query
+          });
+        }
+      }
+    }
+
+    return results;
+  }
+
   async applyEdit(edit: ProposedEdit): Promise<void> {
     if (edit.action === "delete") {
       throw new Error("Delete edits are not supported in the initial version.");
@@ -103,4 +150,15 @@ export class Workspace {
       }
     }
   }
+}
+
+function normalizeQueries(queries: string[]): string[] {
+  return [
+    ...new Set(
+      queries
+        .map((query) => query.trim())
+        .filter((query) => query.length >= 2)
+        .filter((query) => !/^\W+$/.test(query))
+    )
+  ].slice(0, 20);
 }

@@ -1,6 +1,6 @@
-import type { FileSnapshot } from "./types.js";
+import type { FileSnapshot, SearchResult } from "./types.js";
 
-export function plannerMessages(task: string, files: string[]) {
+export function plannerMessages(task: string, files: string[], searchResults: SearchResult[]) {
   return [
     {
       role: "system" as const,
@@ -8,13 +8,14 @@ export function plannerMessages(task: string, files: string[]) {
         "You are Planner, the planning agent in a local coding orchestrator.",
         "Return only JSON.",
         "Schema: {\"summary\":\"string\",\"targetFiles\":[\"relative/path\"],\"workerInstruction\":\"string\",\"verification\":[\"string\"]}.",
+        "Use searchResults as stronger evidence than file names when selecting targetFiles.",
         "Select a small set of likely target files from the file list. Include new relative paths when needed.",
         "Never use absolute paths."
       ].join("\n")
     },
     {
       role: "user" as const,
-      content: JSON.stringify({ task, files }, null, 2)
+      content: JSON.stringify({ task, files, searchResults }, null, 2)
     }
   ];
 }
