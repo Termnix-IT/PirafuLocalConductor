@@ -9,6 +9,7 @@ import {
   testOrchestratorStopsWhenIntakeIsNotReady,
   testOrchestratorRetriesAfterReviewRejection
 } from "./orchestrator.test.js";
+import { testChatLogPathToIdExtractsJsonFileName } from "./chat.test.js";
 import { testApplyUnifiedPatchRejectsMismatchedContext, testApplyUnifiedPatchUpdatesMatchingHunk } from "./patch.test.js";
 import { testRunLogListsAndReadsSavedLogs, testRunLogSavesJsonFile } from "./runLog.test.js";
 import {
@@ -28,6 +29,7 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["workspace rejects absolute and escaping paths", testWorkspaceRejectsEscapingPaths],
   ["workspace applies approved create edits inside root", testWorkspaceAppliesCreateEdits],
   ["workspace search text finds matches", testWorkspaceSearchTextFindsMatches],
+  ["chat log path to id extracts JSON file name", testChatLogPathToIdExtractsJsonFileName],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
   ["worker validation requires content or patch for update", testWorkerValidationRequiresContentOrPatchForUpdate],
   ["intake validation requires known risk level", testIntakeValidationRequiresKnownRiskLevel],

@@ -1,5 +1,6 @@
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import type { Interface } from "node:readline/promises";
 import type { PreparedEdit } from "./types.js";
 
 export type ApprovalDecision = "approve" | "reject" | "quit";
@@ -25,5 +26,23 @@ export function createInteractiveApproval(): ApprovalProvider {
     } finally {
       rl.close();
     }
+  };
+}
+
+export function createReadlineApproval(rl: Interface): ApprovalProvider {
+  return async (edits) => {
+    for (const edit of edits) {
+      output.write(`\n${edit.diff}\nReason: ${edit.reason}\n`);
+    }
+
+    const fileList = edits.map((edit) => edit.path).join(", ");
+    const answer = (await rl.question(`Apply all ${edits.length} proposed edit(s) (${fileList})? [y/N/q] `)).trim().toLowerCase();
+    if (answer === "y" || answer === "yes") {
+      return "approve";
+    }
+    if (answer === "q" || answer === "quit") {
+      return "quit";
+    }
+    return "reject";
   };
 }

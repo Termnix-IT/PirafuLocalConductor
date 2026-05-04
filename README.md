@@ -9,6 +9,7 @@ npm install
 npm run build
 node dist/src/cli.js doctor
 node dist/src/cli.js run --workspace C:\path\to\project --task "Make the requested change"
+node dist/src/cli.js chat --workspace C:\path\to\project
 ```
 
 The CLI uses a safe `Intake -> Planner -> Worker -> Reviewer` flow. Intake acts as the front desk: it normalizes the request, records acceptance criteria and constraints, and stops before planning when the request is too ambiguous to edit safely. The Worker proposes edits, the Reviewer checks the combined diff, and files are written only after one batch approval.
@@ -35,3 +36,20 @@ node dist/src/cli.js retry pirafu-2026-05-04T00-00-00-000Z --dry-run
 - `--log-dir` controls where JSON run logs are saved. The default is `.pirafu/logs`.
 - `logs list` and `logs show` inspect saved JSON run logs.
 - `retry` and `resume` rerun a saved log's task, workspace, and model. Current flags such as `--dry-run`, `--review-retries`, and `--test-command` still apply.
+
+## Chat mode
+
+```powershell
+node dist/src/cli.js chat --workspace C:\path\to\project
+```
+
+Inside chat mode, plain text is treated as a coding task. Slash commands are handled locally:
+
+- `/help`
+- `/doctor`
+- `/logs`
+- `/show <id|last>`
+- `/retry <id|last>`
+- `/dry-run on`
+- `/dry-run off`
+- `/exit`

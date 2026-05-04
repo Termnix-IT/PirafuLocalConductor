@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createInteractiveApproval } from "./approval.js";
+import { runChat } from "./chat.js";
 import { runDoctor } from "./doctor.js";
 import { OllamaClient } from "./ollamaClient.js";
 import { runOrchestrator } from "./orchestrator.js";
@@ -50,6 +51,22 @@ async function main(argv: string[]): Promise<void> {
       throw new Error("--task is required for run.");
     }
     await executeRun(options.command, options, options.task, options.workspace, options.model);
+    return;
+  }
+
+  if (options.command === "chat") {
+    ensureNoExtraArgs(options);
+    if (!options.workspace) {
+      throw new Error("--workspace is required for chat.");
+    }
+    await runChat({
+      workspace: options.workspace,
+      model: options.model,
+      dryRun: options.dryRun,
+      reviewRetries: options.reviewRetries,
+      logDir: options.logDir,
+      testCommand: options.testCommand
+    });
     return;
   }
 
@@ -208,6 +225,7 @@ function printHelp(): void {
 Usage:
   pirafu doctor [--model gemma4:latest]
   pirafu run --workspace <path> --task <request> [--model gemma4:latest] [--dry-run] [--review-retries 1] [--test-command "npm test"] [--log-dir .pirafu/logs]
+  pirafu chat --workspace <path> [--model gemma4:latest] [--dry-run] [--review-retries 1] [--test-command "npm test"] [--log-dir .pirafu/logs]
   pirafu logs list [--log-dir .pirafu/logs]
   pirafu logs show <id> [--log-dir .pirafu/logs]
   pirafu retry <id> [--dry-run] [--review-retries 1] [--test-command "npm test"] [--log-dir .pirafu/logs]
