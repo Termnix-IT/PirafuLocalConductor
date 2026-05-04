@@ -1,4 +1,5 @@
 export type Role = "system" | "user" | "assistant";
+export type ResponseLanguage = "ja" | "en";
 
 export interface ChatMessage {
   role: Role;

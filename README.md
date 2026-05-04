@@ -50,6 +50,8 @@ Inside chat mode, plain text is treated as a coding task. Slash commands are han
 - `/logs`
 - `/show <id|last>`
 - `/retry <id|last>`
+- `/language ja`
+- `/language en`
 - `/dry-run on`
 - `/dry-run off`
 - `/exit`

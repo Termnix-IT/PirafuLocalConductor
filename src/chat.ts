@@ -6,6 +6,7 @@ import { OllamaClient } from "./ollamaClient.js";
 import { runOrchestrator } from "./orchestrator.js";
 import { extractRetryRunOptions } from "./retryLog.js";
 import { listRunLogs, readRunLog, saveRunLog, SessionLogger } from "./runLog.js";
+import type { ResponseLanguage } from "./types.js";
 
 export interface ChatOptions {
   workspace: string;
@@ -19,9 +20,10 @@ export interface ChatOptions {
 export async function runChat(options: ChatOptions): Promise<void> {
   const prompt = await createPrompt();
   let dryRun = options.dryRun;
+  let language: ResponseLanguage = "ja";
   let lastLogId: string | undefined;
 
-  output.write(`Pirafu Local Conductor\nWorkspace: ${options.workspace}\nModel: ${options.model}\nType /help for commands.\n\n`);
+  output.write(`Pirafu Local Conductor\nWorkspace: ${options.workspace}\nModel: ${options.model}\nLanguage: ${formatLanguage(language)}\nType /help for commands.\n\n`);
 
   try {
     while (true) {
@@ -36,8 +38,9 @@ export async function runChat(options: ChatOptions): Promise<void> {
         break;
       }
       if (line.startsWith("/")) {
-        const result = await handleChatCommand(line, options, dryRun, lastLogId, prompt);
+        const result = await handleChatCommand(line, options, dryRun, language, lastLogId, prompt);
         dryRun = result.dryRun;
+        language = result.language;
         lastLogId = result.lastLogId ?? lastLogId;
         if (result.exit) {
           break;
@@ -45,7 +48,7 @@ export async function runChat(options: ChatOptions): Promise<void> {
         continue;
       }
 
-      lastLogId = await executeChatTask(line, options, dryRun, prompt);
+      lastLogId = await executeChatTask(line, options, dryRun, language, prompt);
     }
   } finally {
     prompt.close();
@@ -60,6 +63,7 @@ interface Prompt {
 
 interface ChatCommandResult {
   dryRun: boolean;
+  language: ResponseLanguage;
   lastLogId?: string;
   exit?: boolean;
 }
@@ -68,6 +72,7 @@ async function handleChatCommand(
   line: string,
   options: ChatOptions,
   dryRun: boolean,
+  language: ResponseLanguage,
   lastLogId: string | undefined,
   prompt: Prompt
 ): Promise<ChatCommandResult> {
@@ -81,18 +86,19 @@ async function handleChatCommand(
         "  /logs",
         "  /show <id|last>",
         "  /retry <id|last>",
+        "  /language ja|en",
         "  /dry-run on|off",
         "  /exit",
         "Plain text is treated as a coding task.",
         ""
       ].join("\n")
     );
-    return { dryRun };
+    return { dryRun, language };
   }
   if (command === "/doctor") {
     const result = await runDoctor(options.model);
     output.write(`node: ${result.node}\nnpm: ${result.npm}\nollama: ${result.ollama}\nmodel ${result.model}: ${result.modelAvailable ? "available" : "missing"}\n`);
-    return { dryRun };
+    return { dryRun, language };
   }
   if (command === "/logs") {
     const logs = await listRunLogs(options.logDir);
@@ -103,41 +109,51 @@ async function handleChatCommand(
         output.write(`${log.id}\t${log.modifiedTime}\t${log.path}\n`);
       }
     }
-    return { dryRun };
+    return { dryRun, language };
   }
   if (command === "/show") {
     const id = resolveChatLogId(args[0], lastLogId);
     output.write(`${JSON.stringify(await readRunLog(options.logDir, id), null, 2)}\n`);
-    return { dryRun };
+    return { dryRun, language };
   }
   if (command === "/retry") {
     const id = resolveChatLogId(args[0], lastLogId);
     const retryOptions = extractRetryRunOptions(await readRunLog(options.logDir, id), options.model);
-    const nextLogId = await executeChatTask(retryOptions.task, { ...options, workspace: retryOptions.workspace, model: retryOptions.model }, dryRun, prompt);
-    return { dryRun, lastLogId: nextLogId };
+    const nextLogId = await executeChatTask(retryOptions.task, { ...options, workspace: retryOptions.workspace, model: retryOptions.model }, dryRun, language, prompt);
+    return { dryRun, language, lastLogId: nextLogId };
+  }
+  if (command === "/language") {
+    const nextLanguage = parseLanguage(args[0]);
+    if (!nextLanguage) {
+      output.write(`language is ${formatLanguage(language)}. Use /language ja or /language en.\n`);
+      return { dryRun, language };
+    }
+    output.write(`language ${formatLanguage(nextLanguage)}\n`);
+    return { dryRun, language: nextLanguage };
   }
   if (command === "/dry-run") {
     const value = args[0];
     if (value !== "on" && value !== "off") {
       output.write(`dry-run is ${dryRun ? "on" : "off"}. Use /dry-run on or /dry-run off.\n`);
-      return { dryRun };
+      return { dryRun, language };
     }
     const next = value === "on";
     output.write(`dry-run ${next ? "on" : "off"}\n`);
-    return { dryRun: next };
+    return { dryRun: next, language };
   }
   if (command === "/exit" || command === "/quit") {
-    return { dryRun, exit: true };
+    return { dryRun, language, exit: true };
   }
 
   output.write(`Unknown command: ${command}. Type /help.\n`);
-  return { dryRun };
+  return { dryRun, language };
 }
 
 async function executeChatTask(
   task: string,
   options: ChatOptions,
   dryRun: boolean,
+  language: ResponseLanguage,
   prompt: Prompt
 ): Promise<string> {
   const client = new OllamaClient({ model: options.model });
@@ -153,6 +169,7 @@ async function executeChatTask(
       dryRun,
       maxReviewRetries: options.reviewRetries,
       testCommand: options.testCommand,
+      language,
       logger
     });
   } catch (error) {
@@ -235,4 +252,18 @@ async function readAllInputLines(): Promise<string[]> {
 
 export function splitInputLines(buffer: Buffer): string[] {
   return buffer.toString("utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+}
+
+export function parseLanguage(value: string | undefined): ResponseLanguage | undefined {
+  if (value === "ja" || value === "jp" || value === "japanese" || value === "日本語") {
+    return "ja";
+  }
+  if (value === "en" || value === "english" || value === "英語") {
+    return "en";
+  }
+  return undefined;
+}
+
+export function formatLanguage(language: ResponseLanguage): string {
+  return language === "ja" ? "ja (Japanese)" : "en (English)";
 }

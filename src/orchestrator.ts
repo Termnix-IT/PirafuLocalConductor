@@ -6,7 +6,16 @@ import type { ApprovalProvider } from "./approval.js";
 import { intakeMessages, plannerMessages, reviewerMessages, workerMessages } from "./prompts.js";
 import type { OllamaClient } from "./ollamaClient.js";
 import { runTestCommand, type TestCommandRunner } from "./testCommand.js";
-import type { ChatMessage, IntakeOutput, PlannerOutput, PreparedEdit, ReviewerOutput, TestCommandResult, WorkerOutput } from "./types.js";
+import type {
+  ChatMessage,
+  IntakeOutput,
+  PlannerOutput,
+  PreparedEdit,
+  ResponseLanguage,
+  ReviewerOutput,
+  TestCommandResult,
+  WorkerOutput
+} from "./types.js";
 import { validateIntakeOutput, validatePlannerOutput, validateReviewerOutput, validateWorkerOutput } from "./validation.js";
 import { Workspace } from "./workspace.js";
 
@@ -21,6 +30,7 @@ export interface RunOptions {
   maxReviewRetries?: number;
   testCommand?: string;
   testRunner?: TestCommandRunner;
+  language?: ResponseLanguage;
 }
 
 export interface RunResult {
@@ -39,6 +49,7 @@ export interface RunResult {
 
 export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   const logger = options.logger ?? console;
+  const language = options.language ?? "en";
   const workspace = await Workspace.open(options.workspacePath);
 
   logger.log(`Workspace: ${workspace.root}`);
@@ -49,7 +60,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   const searchResults = await workspace.searchText(searchQueries);
   logger.log(`Search: ${searchResults.length} match(es) for ${searchQueries.length} query term(s).`);
   logger.log("Intake: evaluating request clarity and routing...");
-  const intake = await requestValidatedJson(options.client, intakeMessages(options.task, files, searchResults), validateIntakeOutput, "intake output");
+  const intake = await requestValidatedJson(options.client, intakeMessages(options.task, files, searchResults, language), validateIntakeOutput, "intake output");
   logger.log(`Intake summary: ${intake.summary}`);
   logger.log(`Intake risk: ${intake.riskLevel}`);
   for (const criterion of intake.acceptanceCriteria) {
@@ -75,7 +86,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
   }
 
   const task = intake.normalizedTask || options.task;
-  const planner = await requestValidatedJson(options.client, plannerMessages(task, files, searchResults), validatePlannerOutput, "planner output");
+  const planner = await requestValidatedJson(options.client, plannerMessages(task, files, searchResults, language), validatePlannerOutput, "planner output");
 
   logger.log(`Planner summary: ${planner.summary}`);
   const snapshots = await workspace.readSnapshots(planner.targetFiles);
@@ -94,7 +105,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
     const instruction = reviewFeedback
       ? `${planner.workerInstruction}\n\nReviewer rejected the previous diff. Address this feedback and return a revised complete edit set:\n${reviewFeedback}`
       : planner.workerInstruction;
-    worker = await requestValidatedJson(options.client, workerMessages(task, instruction, snapshots), validateWorkerOutput, "worker output");
+    worker = await requestValidatedJson(options.client, workerMessages(task, instruction, snapshots, language), validateWorkerOutput, "worker output");
     workerAttempts.push(worker);
 
     prepared = await prepareEdits(workspace, worker.edits);
@@ -104,7 +115,7 @@ export async function runOrchestrator(options: RunOptions): Promise<RunResult> {
 
     logger.log(`Reviewer: reviewing proposed diff (${attemptLabel})...`);
     const combinedDiff = prepared.map((edit) => edit.diff).join("\n");
-    reviewer = await requestValidatedJson(options.client, reviewerMessages(task, combinedDiff), validateReviewerOutput, "reviewer output");
+    reviewer = await requestValidatedJson(options.client, reviewerMessages(task, combinedDiff, language), validateReviewerOutput, "reviewer output");
     reviewerAttempts.push(reviewer);
 
     logger.log(`Reviewer approved: ${reviewer.approved}`);

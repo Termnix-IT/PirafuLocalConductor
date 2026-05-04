@@ -1,6 +1,6 @@
-import type { FileSnapshot, SearchResult } from "./types.js";
+import type { FileSnapshot, ResponseLanguage, SearchResult } from "./types.js";
 
-export function intakeMessages(task: string, files: string[], searchResults: SearchResult[]) {
+export function intakeMessages(task: string, files: string[], searchResults: SearchResult[], language: ResponseLanguage = "en") {
   return [
     {
       role: "system" as const,
@@ -11,7 +11,8 @@ export function intakeMessages(task: string, files: string[], searchResults: Sea
         "Decide whether the request is clear enough for a coding agent to edit files safely.",
         "Set ready=false only when a reasonable implementation cannot be inferred safely.",
         "When ready=true, rewrite normalizedTask as a concise actionable request for Planner.",
-        "Use relative paths only when mentioning files. Never invent absolute paths."
+        "Use relative paths only when mentioning files. Never invent absolute paths.",
+        languageInstruction(language)
       ].join("\n")
     },
     {
@@ -21,7 +22,7 @@ export function intakeMessages(task: string, files: string[], searchResults: Sea
   ];
 }
 
-export function plannerMessages(task: string, files: string[], searchResults: SearchResult[]) {
+export function plannerMessages(task: string, files: string[], searchResults: SearchResult[], language: ResponseLanguage = "en") {
   return [
     {
       role: "system" as const,
@@ -31,7 +32,8 @@ export function plannerMessages(task: string, files: string[], searchResults: Se
         "Schema: {\"summary\":\"string\",\"targetFiles\":[\"relative/path\"],\"workerInstruction\":\"string\",\"verification\":[\"string\"]}.",
         "Use searchResults as stronger evidence than file names when selecting targetFiles.",
         "Select a small set of likely target files from the file list. Include new relative paths when needed.",
-        "Never use absolute paths."
+        "Never use absolute paths.",
+        languageInstruction(language)
       ].join("\n")
     },
     {
@@ -41,7 +43,7 @@ export function plannerMessages(task: string, files: string[], searchResults: Se
   ];
 }
 
-export function workerMessages(task: string, instruction: string, snapshots: FileSnapshot[]) {
+export function workerMessages(task: string, instruction: string, snapshots: FileSnapshot[], language: ResponseLanguage = "en") {
   return [
     {
       role: "system" as const,
@@ -52,7 +54,8 @@ export function workerMessages(task: string, instruction: string, snapshots: Fil
         "Use only relative paths. Do not emit absolute paths.",
         "Prefer create and update. Delete is reserved for files that are clearly obsolete.",
         "For update, prefer patch when the change is small. Use content when creating files or when full replacement is safer.",
-        "Do not provide both content and patch for the same edit unless content is the authoritative full replacement."
+        "Do not provide both content and patch for the same edit unless content is the authoritative full replacement.",
+        languageInstruction(language)
       ].join("\n")
     },
     {
@@ -62,7 +65,7 @@ export function workerMessages(task: string, instruction: string, snapshots: Fil
   ];
 }
 
-export function reviewerMessages(task: string, diff: string) {
+export function reviewerMessages(task: string, diff: string, language: ResponseLanguage = "en") {
   return [
     {
       role: "system" as const,
@@ -70,7 +73,8 @@ export function reviewerMessages(task: string, diff: string) {
         "You are Reviewer, the review agent in a local coding orchestrator.",
         "Return only JSON.",
         "Schema: {\"approved\":boolean,\"findings\":[\"string\"],\"requiredChanges\":[\"string\"]}.",
-        "Focus on dangerous file operations, missed requirements, and test gaps."
+        "Focus on dangerous file operations, missed requirements, and test gaps.",
+        languageInstruction(language)
       ].join("\n")
     },
     {
@@ -78,4 +82,10 @@ export function reviewerMessages(task: string, diff: string) {
       content: JSON.stringify({ task, diff }, null, 2)
     }
   ];
+}
+
+function languageInstruction(language: ResponseLanguage): string {
+  return language === "ja"
+    ? "Write human-facing JSON string values in Japanese. Keep code, paths, commands, and identifiers in their original language."
+    : "Write human-facing JSON string values in English. Keep code, paths, commands, and identifiers in their original language.";
 }

@@ -10,7 +10,12 @@ import {
   testOrchestratorStopsWhenIntakeIsNotReady,
   testOrchestratorRetriesAfterReviewRejection
 } from "./orchestrator.test.js";
-import { testChatLogPathToIdExtractsJsonFileName, testSplitInputLinesNormalizesWindowsNewlines } from "./chat.test.js";
+import {
+  testChatLogPathToIdExtractsJsonFileName,
+  testFormatLanguageLabelsState,
+  testParseLanguageAcceptsJapaneseAndEnglishAliases,
+  testSplitInputLinesNormalizesWindowsNewlines
+} from "./chat.test.js";
 import { testApplyUnifiedPatchRejectsMismatchedContext, testApplyUnifiedPatchUpdatesMatchingHunk } from "./patch.test.js";
 import { testRunLogListsAndReadsSavedLogs, testRunLogSavesJsonFile } from "./runLog.test.js";
 import {
@@ -34,6 +39,8 @@ const tests: Array<[string, () => void | Promise<void>]> = [
   ["workspace search text finds matches", testWorkspaceSearchTextFindsMatches],
   ["chat log path to id extracts JSON file name", testChatLogPathToIdExtractsJsonFileName],
   ["split input lines normalizes Windows newlines", testSplitInputLinesNormalizesWindowsNewlines],
+  ["parse language accepts Japanese and English aliases", testParseLanguageAcceptsJapaneseAndEnglishAliases],
+  ["format language labels state", testFormatLanguageLabelsState],
   ["parseJsonObject accepts fenced JSON", testParseJsonObjectAcceptsFencedJson],
   ["worker validation requires content or patch for update", testWorkerValidationRequiresContentOrPatchForUpdate],
   ["intake validation requires known risk level", testIntakeValidationRequiresKnownRiskLevel],
